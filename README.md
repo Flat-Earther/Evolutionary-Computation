@@ -167,6 +167,6 @@ No external optimization framework is required; the algorithms are implemented a
 
 ## Course
 
-**Evolutionary Computation**
-Poznań University of Technology
-Computer Science / Artificial Intelligence
+**Evolutionary Computation**<br>
+Poznań University of Technology<br>
+Artificial Intelligence
