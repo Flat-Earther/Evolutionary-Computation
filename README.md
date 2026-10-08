@@ -4,6 +4,27 @@ Solutions and experiments developed for the **Evolutionary Computation** course 
 
 The project focuses on solving a combinatorial optimization problem in which a subset of nodes must be selected and arranged into a Hamiltonian cycle while minimizing both the cycle length and the costs of the selected nodes.
 
+## Course Assignments
+
+The repository contains solutions and reports for the following assignments:
+
+| Assignment | Topic                                                                     | Status      |
+| ---------- | ------------------------------------------------------------------------- | ----------- |
+| 01         | Greedy heuristics                                                         | In progress |
+| 02         | Greedy regret heuristics                                                  | Not started |
+| 03         | Local search                                                              | Not started |
+| 04         | Candidate moves                                                           | Not started |
+| 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
+| 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Not started |
+| 07         | Large Neighborhood Search                                                 | Not started |
+| 08         | Global convexity (fitness-distance/similarity correlations) tests         | Not started |
+| 09         | Hybrid evolutionary algorithm                                             | Not started |
+| 10         | Own method                                                                | Not started |
+
+Each assignment is developed independently and contains its own implementation, evaluation materials, and report.
+
+---
+
 ## Problem
 
 We are given a set of nodes represented by:
@@ -43,33 +64,35 @@ More detailed information about the problem can be found in [`problem-descriptio
 │
 ├── lab-01-greedy-heuristics/
 │   ├── src/
-│   │   ├── main.cpp
-│   │   ├── ...
-│   │   └── ...
 │   ├── evaluation/
-│   │   ├── ...
-│   │   └── ...
 │   └── report.pdf
 │
-├── lab-02-.../
+├── lab-02-greedy-regret-heuristics/
 │   ├── src/
 │   ├── evaluation/
 │   └── report.pdf
 │
-├── lab-03-.../
+├── lab-03-local-search/
 │   ├── src/
 │   ├── evaluation/
 │   └── report.pdf
 │
-...
-|
+├── ...
+│
+├── lab-10-own-method/
+│   ├── src/
+│   ├── evaluation/
+│   └── report.pdf
+│
 ├── .gitignore
 └── README.md
 ```
 
-Each laboratory assignment is kept in a separate directory containing its **C++ implementation**, **evaluation utilities/data**, and the corresponding **report**.
+Each laboratory assignment is kept in a separate directory containing its **C++ implementation**, **evaluation utilities and generated results**, and the corresponding **report**.
 
-The `data/` directory contains shared problem instances used across the laboratories.
+The `data/` directory contains shared problem instances used across the assignments.
+
+The `problem-description/` directory contains the original problem specification and other general materials related to the problem.
 
 ---
 
@@ -89,7 +112,7 @@ Despite the name *nearest neighbor*, the next move is **not selected based solel
 * change in cycle length
 * cost of the selected nodes
 
-The best improvement according to the objective function is selected.
+The best change according to the objective function is selected.
 
 ### Random solution
 
@@ -119,7 +142,7 @@ The experiment generates **200 solutions starting from each node**.
 
 ### Greedy cycle
 
-A greedy cycle is constructed by selecting changes that provide the best improvement of the complete objective function while maintaining a valid solution containing the required number of nodes.
+A greedy cycle is constructed by selecting changes that provide the best improvement of the objective function while maintaining a valid solution containing the required number of nodes.
 
 The experiment generates **200 solutions starting from each node**.
 
@@ -127,7 +150,7 @@ The experiment generates **200 solutions starting from each node**.
 
 ## Lab 01 Evaluation
 
-For every problem instance and every implemented method, the experiment reports:
+For every problem instance and every method, the experiment reports:
 
 * **Minimum** objective value
 * **Maximum** objective value
@@ -161,7 +184,7 @@ lab-01-greedy-heuristics/report.pdf
 * Standard C++ libraries
 * Git / GitHub
 
-No external optimization framework is required; the algorithms are implemented as part of the project.
+The algorithms are implemented as part of the project without relying on external optimization frameworks.
 
 ---
 
