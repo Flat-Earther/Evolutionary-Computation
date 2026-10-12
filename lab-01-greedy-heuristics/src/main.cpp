@@ -131,8 +131,13 @@ void runInstance(const std::string& instance_name, const std::string& data_dir, 
         printRoute(best.route);
 
         method.space.writeBestSolutionCsv((results_dir / (instance_name + "_" + method.result_stem + ".csv")).string());
+        method.space.writeWorstSolutionCsv(
+            (results_dir / (instance_name + "_" + method.result_stem + "_worst.csv")).string());
         method.space.writeSvg((plots_dir / (instance_name + "_" + method.result_stem + ".svg")).string(), nodes,
                               instance_name + " " + method.label);
+        method.space.writeWorstSvg(
+            (plots_dir / (instance_name + "_" + method.result_stem + "_worst.svg")).string(), nodes,
+            instance_name + " " + method.label + " (worst)");
     }
     std::cout << "\n";
 }

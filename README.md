@@ -54,13 +54,12 @@ More detailed information about the problem can be found in [`problem-descriptio
 ```text
 .
 ├── problem-description/
-│   └── problem-description.pdf
-│
-├── data/
-│   ├── example/
-│   │   ├── ...
-│   │   └── ...
-│   └── ...
+│   ├── Problem description.pdf
+│   └── data/
+│       ├── Solution checker.xlsx
+│       └── example/
+│           ├── TSPA.csv
+│           └── TSPB.csv
 │
 ├── lab-01-greedy-heuristics/
 │   ├── src/
@@ -90,9 +89,9 @@ More detailed information about the problem can be found in [`problem-descriptio
 
 Each laboratory assignment is kept in a separate directory containing its **C++ implementation**, **evaluation utilities and generated results**, and the corresponding **report**.
 
-The `data/` directory contains shared problem instances used across the assignments.
+The `problem-description/data/` directory contains shared problem instances and the solution checker used across the assignments.
 
-The `problem-description/` directory contains the original problem specification and other general materials related to the problem.
+The `problem-description/` directory contains the original problem specification and the related data files.
 
 ---
 
@@ -156,9 +155,8 @@ For every problem instance and every method, the experiment reports:
 * **Maximum** objective value
 * **Average** objective value
 
-Additionally, the best solution found by every method is:
+Additionally, the best and worst solutions found by every method are saved as node-index lists and visualized in **2D**. The best solution is:
 
-* visualized in **2D**
 * presented as a list of node indices
 * checked using the provided **solution checker**
 

@@ -9,3 +9,4 @@ cmake-build-*/
 *.ilk
 *.user
 .DS_Store
+.vscode

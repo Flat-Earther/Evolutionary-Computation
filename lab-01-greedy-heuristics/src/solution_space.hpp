@@ -24,9 +24,15 @@ public:
     Stats stats() const;
 
     const Result& bestSolution() const;
+    const Result& worstSolution() const;
     void writeBestSolutionCsv(const std::string& path) const;
+    void writeWorstSolutionCsv(const std::string& path) const;
     void writeSvg(const std::string& path, const std::vector<Node>& nodes, const std::string& title) const;
+    void writeWorstSvg(const std::string& path, const std::vector<Node>& nodes, const std::string& title) const;
 
 private:
+    void writeSolutionSvg(const std::string& path, const std::vector<Node>& nodes, const std::string& title,
+                          const Result& solution) const;
+
     std::vector<Result> solutions_;
 };

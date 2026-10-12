@@ -92,6 +92,19 @@ const Result& SolutionSpace::bestSolution() const {
     return solutions_[best];
 }
 
+const Result& SolutionSpace::worstSolution() const {
+    if (solutions_.empty()) {
+        throw std::runtime_error("no solutions recorded");
+    }
+    std::size_t worst = 0;
+    for (std::size_t i = 1; i < solutions_.size(); ++i) {
+        if (solutions_[i].total_cost >= solutions_[worst].total_cost) {
+            worst = i;
+        }
+    }
+    return solutions_[worst];
+}
+
 void SolutionSpace::writeBestSolutionCsv(const std::string& path) const {
     const auto& best = bestSolution();
     std::ofstream out(path);
@@ -103,7 +116,28 @@ void SolutionSpace::writeBestSolutionCsv(const std::string& path) const {
     }
 }
 
+void SolutionSpace::writeWorstSolutionCsv(const std::string& path) const {
+    const auto& worst = worstSolution();
+    std::ofstream out(path);
+    if (!out) {
+        throw std::runtime_error("cannot write " + path);
+    }
+    for (int node : worst.route) {
+        out << node << "\n";
+    }
+}
+
 void SolutionSpace::writeSvg(const std::string& path, const std::vector<Node>& nodes, const std::string& title) const {
+    writeSolutionSvg(path, nodes, title, bestSolution());
+}
+
+void SolutionSpace::writeWorstSvg(const std::string& path, const std::vector<Node>& nodes,
+                                  const std::string& title) const {
+    writeSolutionSvg(path, nodes, title, worstSolution());
+}
+
+void SolutionSpace::writeSolutionSvg(const std::string& path, const std::vector<Node>& nodes,
+                                     const std::string& title, const Result& solution) const {
     if (nodes.empty()) {
         throw std::runtime_error("no nodes to visualize");
     }
@@ -136,7 +170,6 @@ void SolutionSpace::writeSvg(const std::string& path, const std::vector<Node>& n
         return height - padding - (static_cast<double>(y - min_y) / span_y) * (height - 2 * padding);
     };
 
-    const auto& best = bestSolution();
     std::ofstream out(path);
     if (!out) {
         throw std::runtime_error("cannot write " + path);
@@ -147,11 +180,11 @@ void SolutionSpace::writeSvg(const std::string& path, const std::vector<Node>& n
         << "\" viewBox=\"0 0 " << width << " " << height << "\">\n";
     out << "<rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n";
     out << "<text x=\"" << padding << "\" y=\"24\" font-family=\"sans-serif\" font-size=\"16\">" << title
-        << " | objective=" << best.total_cost << "</text>\n";
+        << " | objective=" << solution.total_cost << "</text>\n";
 
-    if (best.route.size() >= 2) {
+    if (solution.route.size() >= 2) {
         out << "<polyline fill=\"none\" stroke=\"#333333\" stroke-width=\"2\" points=\"";
-        for (int index : best.route) {
+        for (int index : solution.route) {
             out << map_x(nodes[index].x) << "," << map_y(nodes[index].y) << " ";
         }
         out << "\"/>\n";
