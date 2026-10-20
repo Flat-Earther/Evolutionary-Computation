@@ -1,5 +1,5 @@
 method_name,time
-random_sol,2
-nn_at_end,62
-nn_flexible,5013
-greedy_cycle,5419
+random_sol,3
+nn_at_end,84
+nn_flexible,7174
+greedy_cycle,7596

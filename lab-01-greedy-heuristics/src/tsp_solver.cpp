@@ -56,12 +56,12 @@ Result TSPSolver::nearestNeighborEnd(int start_index) {
 
 Result TSPSolver::nearestNeighborFlexible(int start_index) {
     const int n = static_cast<int>(nodes_.size());
-    std::vector<int> route{start_index, start_index};
+
+    std::vector<int> route{start_index};
     std::vector<char> used(n, 0);
     used[start_index] = 1;
-    int used_count = 1;
 
-    while (used_count < target_count_) {
+    while (static_cast<int>(route.size()) < target_count_) {
         int best_increase = std::numeric_limits<int>::max();
         int best_node = -1;
         int best_pos = -1;
@@ -70,6 +70,21 @@ Result TSPSolver::nearestNeighborFlexible(int start_index) {
             if (used[node]) {
                 continue;
             }
+
+            const int begin_increase = distance_matrix_[node][route.front()] + nodes_[node].cost;
+            if (begin_increase < best_increase) {
+                best_increase = begin_increase;
+                best_node = node;
+                best_pos = 0;
+            }
+
+            const int end_increase = distance_matrix_[route.back()][node] + nodes_[node].cost;
+            if (end_increase < best_increase) {
+                best_increase = end_increase;
+                best_node = node;
+                best_pos = static_cast<int>(route.size());
+            }
+
             for (int pos = 0; pos < static_cast<int>(route.size()) - 1; ++pos) {
                 const int a = route[pos];
                 const int b = route[pos + 1];
@@ -88,9 +103,9 @@ Result TSPSolver::nearestNeighborFlexible(int start_index) {
         }
         route.insert(route.begin() + best_pos, best_node);
         used[best_node] = 1;
-        ++used_count;
     }
 
+    route.push_back(route.front());
     return {route, computeTotalCost(route)};
 }
 
