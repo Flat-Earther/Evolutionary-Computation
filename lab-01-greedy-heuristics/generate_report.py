@@ -54,6 +54,27 @@ def fmt(value: float | int) -> str:
     return str(value)
 
 
+def clean_number(value: str | float | int) -> str:
+    """Format evaluation values without unnecessary trailing zeroes."""
+    number = float(value)
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def fixed_decimal(value: str | float | int, places: int = 2) -> str:
+    """Format a statistic with a fixed number of digits after the decimal point."""
+    return f"{float(value):.{places}f}"
+
+
+REPORT_METHODS = [
+    ("random", "Random", "random_sol"),
+    ("nn_end", "Nearest Neighbor - End", "nn_at_end"),
+    ("nn_flexible", "Nearest Neighbor - Any Position", "nn_flexible"),
+    ("greedy_cycle", "Greedy Cycle", "greedy_cycle"),
+]
+
+
 def text(x: float, y: float, value: str, size: int = 20, fill: str = INK,
          weight: str = "400", family: str = "Arial", anchor: str = "start",
          opacity: float = 1.0) -> str:
@@ -141,7 +162,7 @@ def render_plot(path: Path) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     output = cache_dir / f"{path.stem}.png"
     if not output.exists() or output.stat().st_mtime < path.stat().st_mtime:
-        subprocess.run([magick_executable(), str(path), "-resize", "600x600", str(output)], check=True)
+        subprocess.run([magick_executable(), str(path), "-resize", "800x800", str(output)], check=True)
     return output
 
 
@@ -230,20 +251,32 @@ def card_title(parts: list[str], x: float, y: float, title: str, subtitle: str |
 
 
 def table(parts: list[str], x: float, y: float, widths: list[int], headers: list[str], rows: list[list[str]],
-          row_height: int = 42, font_size: int = 16) -> int:
+          row_height: int = 42, font_size: int = 16,
+          highlight_cells: dict[tuple[int, int], str] | None = None,
+          bold_cells: set[tuple[int, int]] | None = None) -> int:
     total_width = sum(widths)
+    highlight_cells = highlight_cells or {}
+    bold_cells = bold_cells or set()
     parts.append(rect(x, y, total_width, row_height, NAVY, radius=8))
     cursor = x
     for width, header in zip(widths, headers):
-        parts.append(text(cursor + 14, y + 27, header, font_size, WHITE, "700"))
+        parts.append(text(cursor + width / 2, y + row_height / 2 + font_size * 0.35,
+                          header, font_size, WHITE, "700", anchor="middle"))
         cursor += width
     for row_index, row in enumerate(rows):
         row_y = y + row_height * (row_index + 1)
         fill = WHITE if row_index % 2 == 0 else "#eef3f7"
         parts.append(rect(x, row_y, total_width, row_height, fill, radius=0))
         cursor = x
-        for width, value in zip(widths, row):
-            parts.append(text(cursor + 14, row_y + 27, value, font_size, INK))
+        for column_index, (width, value) in enumerate(zip(widths, row)):
+            cell = (row_index, column_index)
+            if cell in highlight_cells:
+                parts.append(rect(cursor + 3, row_y + 3, width - 6, row_height - 6,
+                                  highlight_cells[cell], radius=6))
+            weight = "700" if cell in bold_cells else "400"
+            cell_font_size = font_size + 4 if cell in bold_cells else font_size
+            parts.append(text(cursor + width / 2, row_y + row_height / 2 + cell_font_size * 0.35,
+                              value, cell_font_size, INK, weight, anchor="middle"))
             cursor += width
     parts.append(rect(x, y, total_width, row_height * (len(rows) + 1), "none", GRID, 8, 1))
     return row_height * (len(rows) + 1)
@@ -539,6 +572,327 @@ def conclusion_page(number: int) -> str:
     return page_end(parts, number)
 
 
+# The pages below follow the concise structure of report_temp.pdf.  The older
+# page builders remain above as reusable design primitives, while this section
+# defines the current report layout and wording.
+AUTHOR_ONE = "Pawe" + chr(0x142) + " " + chr(0x15a) + "wi" + chr(0x105) + "tek"
+AUTHOR_TWO = "J" + chr(0x119) + "drzej Szmidt"
+REPOSITORY_URL = "https://github.com/Flat-Earther/Evolutionary-Computation/tree/main/lab-01-greedy-heuristics"
+
+
+def page_end_friend(parts: list[str], number: int) -> str:
+    parts.extend([
+        line(70, 1688, WIDTH - 70, 1688, GRID, 1),
+        text(70, 1722, "Evolutionary Computation - Greedy Heuristics", 14, MUTED),
+        text(WIDTH - 70, 1722, f"{AUTHOR_ONE} - {AUTHOR_TWO}   |   {number:02d}", 14, MUTED, anchor="end"),
+        "</svg>",
+    ])
+    return "\n".join(parts)
+
+
+def friend_cover_page(number: int) -> str:
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">',
+        f'<rect width="{WIDTH}" height="{HEIGHT}" fill="{LIGHT}"/>',
+        rect(0, 0, WIDTH, 650, NAVY, radius=0),
+        circle(1080, 65, 210, BLUE, 0.36),
+        circle(1120, 150, 125, TEAL, 0.42),
+        circle(88, 625, 230, ORANGE, 0.92),
+        text(76, 86, "EVOLUTIONARY COMPUTATION", 17, "#b7d0e1", "700"),
+        text(76, 160, "LABORATORY 01", 22, ORANGE, "700"),
+        text(76, 250, "Greedy", 66, WHITE, "700"),
+        text(76, 326, "heuristics", 66, WHITE, "700"),
+        text(80, 402, "for the Traveling Salesperson Problem with Node Costs", 20, "#d9e8f1"),
+        rect(76, 470, 400, 70, "#ffffff", radius=35, opacity=0.12),
+        text(112, 515, "ASSIGNMENT 1 - REPORT", 18, WHITE, "700"),
+        rect(76, 570, 1088, 112, "#1b4669", "#477c9d", 18),
+        text(112, 607, "SOURCE REPOSITORY", 14, ORANGE, "700"),
+        text(112, 651, REPOSITORY_URL, 16, WHITE, "700"),
+        text(76, 716, "Authors", 18, BLUE, "700"),
+        text(76, 760, AUTHOR_ONE, 34, INK, "700"),
+        text(76, 800, "160301", 20, MUTED),
+        text(390, 760, AUTHOR_TWO, 34, INK, "700"),
+        text(390, 800, "160292", 20, MUTED),
+        rect(76, 890, 1088, 260, WHITE, GRID, 22),
+        text(112, 950, "OBJECTIVE", 15, TEAL, "700"),
+        text(112, 1012, "Minimize cycle length + selected node costs", 32, INK, "700"),
+        text(112, 1068, "Choose exactly ceil(n / 2) nodes and arrange them into a closed cycle.", 20, MUTED),
+        text(112, 1102, "The supplied instances contain 200 nodes, so every solution selects 100.", 20, MUTED),
+        rect(76, 1220, 520, 190, PALE_BLUE, radius=20),
+        text(110, 1270, "INSTANCES", 14, BLUE, "700"),
+        text(110, 1324, "TSPA and TSPB", 31, INK, "700"),
+        text(110, 1370, "200 nodes each   -   100 selected", 18, MUTED),
+        rect(644, 1220, 520, 190, PALE_TEAL, radius=20),
+        text(678, 1270, "METHODS", 14, TEAL, "700"),
+        text(678, 1324, "4 greedy and baseline methods", 29, INK, "700"),
+        text(678, 1370, "200 solutions evaluated per method", 18, MUTED),
+        line(76, 1510, 1164, 1510, GRID, 1),
+        text(76, 1565, "Poznan University of Technology - Artificial Intelligence", 17, MUTED),
+        text(1164, 1565, "October 2026", 17, MUTED, anchor="end"),
+    ]
+    return page_end_friend(parts, number)
+
+
+def friend_problem_page(number: int) -> str:
+    parts = page_start("1. Problem description", "01 - problem", number)
+    parts.extend([
+        text(70, 190, "The input consists of n nodes, each with integer planar coordinates (x, y) and an integer node cost.", 19, MUTED),
+        text(70, 230, "The task is to choose exactly k = ceil(n / 2) distinct nodes and specify their cyclic visiting order.", 19, MUTED),
+        text(70, 270, "The cycle must return from its last selected node to its first selected node.", 19, MUTED),
+        rect(70, 330, 1100, 154, NAVY, radius=18),
+        text(105, 374, "OBJECTIVE", 14, ORANGE, "700"),
+        text(105, 428, "f(S) = cycle length(S) + sum of costs of selected nodes", 27, WHITE, "700"),
+        rect(70, 540, 525, 260, PALE_BLUE, radius=20),
+        rect(645, 540, 525, 260, PALE_TEAL, radius=20),
+        text(105, 586, "DISTANCE", 15, BLUE, "700"),
+        text(680, 586, "DATA SEPARATION", 15, TEAL, "700"),
+        multiline(105, 638, [
+            "d(i,j) = round(sqrt((xi-xj)^2 + (yi-yj)^2))",
+            "",
+            "Distances are calculated once",
+            "and stored in a distance matrix.",
+        ], 18, INK, line_height=35),
+        multiline(680, 638, [
+            "Optimization methods access",
+            "the distance matrix and node",
+            "costs, not the original coordinates.",
+        ], 18, INK, line_height=35),
+        text(70, 890, "For the supplied TSPA and TSPB instances, n = 200 and k = 100.", 20, INK, "700"),
+        multiline(70, 946, wrap_words(
+            "This problem combines a subset-selection decision with a cyclic routing decision. "
+            "The algorithms below construct feasible solutions directly and evaluate every candidate change "
+            "using both distance and node cost.", 97), 19, MUTED, line_height=29),
+        text(70, 1140, "Solution representation", 25, INK, "700"),
+        rect(70, 1188, 1100, 230, WHITE, GRID, 20),
+        multiline(108, 1240, [
+            "A solution is an ordered list of k distinct node indices.",
+            "The closing edge from the last node to the first is included in the objective.",
+            "All reported indices are zero-based, matching the supplied solution checker.",
+        ], 19, MUTED, line_height=36),
+    ])
+    return page_end_friend(parts, number)
+
+
+def friend_algorithms_page_one(number: int) -> str:
+    parts = page_start("2. Algorithms and pseudocode", "02 - algorithms", number)
+    code_card(parts, 70, 180, 530, 660, "2.1 Random solution", "Randomly selects the required number of distinct nodes. It is used as a baseline.", [
+        "Algorithm RandomSolution(n, k)",
+        "1. V <- {0, 1, ..., n - 1}",
+        "2. S <- randomly select k distinct nodes from V",
+        "3. Return S",
+        "",
+        "The cycle is closed when F(S) is evaluated.",
+    ], ORANGE)
+    code_card(parts, 640, 180, 530, 660, "2.2 Nearest Neighbor - End", "Starts with one node and repeatedly appends the most promising unused node to the path end.", [
+        "Algorithm NearestNeighborEnd(D, C, start)",
+        "1. V <- {0, 1, ..., n - 1}",
+        "2. S <- [start]; U <- V \\ {start}",
+        "3. k <- ceil(n / 2)",
+        "4. While |S| < k:",
+        "   best <- argmin over v in U:",
+        "            D[last][v] + C[v]",
+        "   append best to S; remove best from U",
+        "5. Return S",
+    ], BLUE)
+    code_card(parts, 70, 870, 530, 660, "2.3 Nearest Neighbor - Any Position", "Maintains an open path and tests insertion at its beginning, end, and between adjacent nodes.", [
+        "Algorithm NearestNeighborAnyPosition(D, C, start)",
+        "1. S <- [start]; U <- V \\ {start}",
+        "2. k <- ceil(n / 2)",
+        "3. While |S| < k:",
+        "   For each v in U:",
+        "     test beginning: D[v][S[0]] + C[v]",
+        "     test end: D[S[-1]][v] + C[v]",
+        "     test each gap (a,b):",
+        "       D[a][v] + D[v][b] - D[a][b] + C[v]",
+        "   insert the best node at the best position",
+        "   remove the node from U",
+        "4. Return S",
+    ], TEAL)
+    code_card(parts, 640, 870, 530, 660, "2.4 Greedy Cycle", "Maintains a closed cycle and inserts the best unused node into the best cycle edge.", [
+        "Algorithm GreedyCycle(D, C, start)",
+        "1. S <- [start]; U <- V \\ {start}",
+        "2. k <- ceil(n / 2)",
+        "3. second <- argmin over v in U:",
+        "      2 * D[start][v] + C[v]",
+        "4. S <- [start, second]; remove second from U",
+        "5. While |S| < k:",
+        "   for each v in U and closed edge (a,b):",
+        "     delta <- D[a][v] + D[v][b]",
+        "              - D[a][b] + C[v]",
+        "   insert the best node and remove it from U",
+        "6. Return S",
+    ], BLUE)
+    return page_end_friend(parts, number)
+
+
+def friend_stats_rows(stats: dict[str, list[dict[str, str]]], instance: str) -> list[list[str]]:
+    labels = {key: label for _, label, key in REPORT_METHODS}
+    rows = []
+    for row in stats[instance]:
+        rows.append([
+            labels[row["method_name"]],
+            clean_number(row["min"]),
+            clean_number(row["max"]),
+            fixed_decimal(row["avg"]),
+            fixed_decimal(row["sd"]),
+        ])
+    return rows
+
+
+def friend_results_page(number: int, instance: str, stats: dict[str, list[dict[str, str]]], times: dict[str, dict[str, str]], final_results: bool = False) -> str:
+    parts = page_start(f"3. Computational experiment - {instance}", "03 - experiment", number)
+    parts.extend([
+        text(70, 190, "The experimental procedure consists of generating 200 solutions for each algorithm and instance.", 19, MUTED),
+        text(70, 230, "For the greedy methods, solutions are constructed from different starting nodes; Random uses independent samples.", 19, MUTED),
+        text(70, 270, "For each method, minimum, maximum, average, and standard deviation are calculated.", 19, MUTED),
+        text(70, 350, f"Experimental results - {instance}", 27, INK, "700"),
+    ])
+    rows = friend_stats_rows(stats, instance)
+    minimum_index = min(range(len(stats[instance])), key=lambda index: float(stats[instance][index]["min"]))
+    average_index = min(range(len(stats[instance])), key=lambda index: float(stats[instance][index]["avg"]))
+    table(parts, 70, 398, [380, 160, 160, 220, 180],
+          ["Algorithm", "Minimum", "Maximum", "Average", "Std. dev."], rows,
+          row_height=54, font_size=17,
+          highlight_cells={(minimum_index, 1): "#f4a261", (average_index, 3): "#ffd166"},
+          bold_cells={(minimum_index, 1), (average_index, 3)})
+    instance_rows = {row["method_name"]: row for row in stats[instance]}
+    any_row = instance_rows["nn_flexible"]
+    best_avg = min(stats[instance], key=lambda row: float(row["avg"]))
+    parts.extend([
+        rect(70, 700, 1100, 30, "none", "none", 0),
+        rect(70, 700, 18, 18, "#f4a261", radius=4),
+        text(98, 715, "lowest minimum", 14, MUTED),
+        rect(242, 700, 18, 18, "#ffd166", radius=4),
+        text(270, 715, "lowest average", 14, MUTED),
+        text(70, 770, "Result summary", 25, INK, "700"),
+        rect(70, 818, 1100, 285, WHITE, GRID, 20),
+        multiline(108, 874, wrap_words(
+            f"The best individual solution for {instance} was found by Nearest Neighbor - Any Position, "
+            f"with objective {clean_number(any_row['min'])}.", 86), 19, MUTED, line_height=29),
+        multiline(108, 966, wrap_words(
+            f"The best average result for this instance was obtained by {REPORT_METHODS[[key for _, _, key in REPORT_METHODS].index(best_avg['method_name'])][1]}, "
+            f"with average objective {clean_number(best_avg['avg'])}.", 86), 19, MUTED, line_height=29),
+        text(108, 1060, "All solutions were checked with the provided solution checker.", 19, INK, "700"),
+        text(70, 1170, "Runtime reference", 25, INK, "700"),
+        multiline(70, 1218, [
+            f"Random: {clean_number(times[instance]['random_sol'])} ms     |     Nearest Neighbor - End: {clean_number(times[instance]['nn_at_end'])} ms",
+            f"Nearest Neighbor - Any Position: {clean_number(times[instance]['nn_flexible'])} ms     |     Greedy Cycle: {clean_number(times[instance]['greedy_cycle'])} ms",
+        ], 18, MUTED, line_height=31),
+    ])
+    if final_results:
+        parts.append(text(70, 1430, "The following pages present the best solutions and their node-index lists.", 19, INK, "700"))
+    return page_end_friend(parts, number)
+
+
+def friend_visual_page(number: int, instance: str, stats: dict[str, list[dict[str, str]]], worst: bool = False) -> str:
+    section = "6 - worst solutions" if worst else "4 - best solutions"
+    title = f"{section.split(' - ')[0]}. {'Worst' if worst else 'Best'} solutions - {instance}"
+    parts = page_start(title, section, number)
+    parts.append(text(70, 160, "The plots show node cost using colour and size. The line represents the closed cycle.", 17, MUTED))
+    image_width = 320
+    row_height = 365
+    start_y = 208
+    labels = {key: label for _, label, key in REPORT_METHODS}
+    for index, (method, label, stat_key) in enumerate(REPORT_METHODS):
+        y = start_y + index * row_height
+        parts.append(rect(70, y, 1100, 338, WHITE, GRID, 18))
+        label_size = 14 if len(label) > 25 else 19
+        parts.append(text(98, y + 36, label, label_size, INK, "700"))
+        row = next(item for item in stats[instance] if item["method_name"] == stat_key)
+        objective = row["max"] if worst else row["min"]
+        parts.append(text(98, y + 66, f"min={clean_number(row['min'])}  max={clean_number(row['max'])}  avg={clean_number(row['avg'])}", 14, MUTED))
+        parts.append(rect(98, y + 92, 178, 38, PALE_ORANGE if worst else PALE_TEAL, radius=19))
+        parts.append(text(187, y + 118, f"{'worst' if worst else 'best'} = {clean_number(objective)}", 14, INK, "700", anchor="middle"))
+        plot = EVALUATION / "plots" / f"{instance}_{method}{'_worst' if worst else ''}.svg"
+        parts.append(svg_image(plot, 350, y + 18, image_width, image_width))
+        parts.append(text(710, y + 52, f"{'Worst' if worst else 'Best'} solution nodes:", 15, BLUE, "700"))
+        route = read_route(instance, method, worst)
+        parts.append(multiline(710, y + 86, wrap_tokens(route, 49), 12, MUTED, family="Consolas", line_height=18))
+    return page_end_friend(parts, number)
+
+
+def dark_divider_page(number: int) -> str:
+    """Create a dark visual separator before the large-format appendix."""
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" '
+        f'viewBox="0 0 {WIDTH} {HEIGHT}">'
+        f'<rect width="{WIDTH}" height="{HEIGHT}" fill="{NAVY}"/>'
+        "</svg>"
+    )
+
+
+def friend_large_visual_page(number: int, instance: str, stats: dict[str, list[dict[str, str]]],
+                             worst: bool, pair_index: int) -> str:
+    """Show two large plots per page for projection-friendly viewing."""
+    mode = "Worst" if worst else "Best"
+    accent = ORANGE if worst else TEAL
+    background = "#ffe8d8" if worst else "#def2ec"
+    border = "#e4a06f" if worst else "#8ac5b6"
+    subset = REPORT_METHODS[pair_index * 2:(pair_index + 1) * 2]
+    parts = page_start(
+        f"7. Large {mode.lower()} visualizations - {instance}",
+        f"appendix - {mode.lower()} solutions",
+        number,
+    )
+    card_y = [155, 915]
+    for y, (method, label, stat_key) in zip(card_y, subset):
+        row = next(item for item in stats[instance] if item["method_name"] == stat_key)
+        objective = row["max"] if worst else row["min"]
+        route = read_route(instance, method, worst)
+        parts.append(rect(70, y, 1100, 740, background, border, 22))
+        parts.append(rect(810, y + 24, 224, 40, accent, radius=20))
+        parts.append(text(922, y + 50, f"{mode.upper()} SOLUTION", 14, WHITE, "700", anchor="middle"))
+        label_size = 18 if len(label) > 25 else 22
+        parts.append(text(810, y + 98, label, label_size, INK, "700"))
+        parts.append(multiline(810, y + 126, [
+            f"minimum {clean_number(row['min'])}",
+            f"maximum {clean_number(row['max'])}",
+            f"average {fixed_decimal(row['avg'])}",
+        ], 12, MUTED, line_height=18))
+        parts.append(rect(810, y + 188, 210, 40, WHITE, border, 12))
+        parts.append(text(915, y + 215, f"objective {clean_number(objective)}", 14, INK, "700", anchor="middle"))
+        plot = EVALUATION / "plots" / f"{instance}_{method}{'_worst' if worst else ''}.svg"
+        parts.append(svg_image(plot, 85, y + 25, 700, 700))
+        parts.append(text(810, y + 270, f"{mode} solution nodes", 16, accent, "700"))
+        parts.append(multiline(810, y + 306, wrap_tokens(route, 38), 12, INK, family="Consolas", line_height=18))
+        parts.append(text(810, y + 690, f"{len(set(route[:-1]))} selected nodes; closed route", 14, accent, "700"))
+    return page_end_friend(parts, number)
+
+
+def friend_conclusion_page(number: int, stats: dict[str, list[dict[str, str]]]) -> str:
+    parts = page_start("5. Conclusions", "05 - conclusions", number)
+    tspa = {row["method_name"]: row for row in stats["TSPA"]}
+    tspb = {row["method_name"]: row for row in stats["TSPB"]}
+    parts.extend([
+        text(70, 190, "The experimental results show that the greedy algorithms outperform the Random Solution method.", 20, MUTED),
+        text(70, 230, "Randomly selecting nodes produces inefficient routes with many long and crossing connections.", 20, MUTED),
+        rect(70, 310, 1100, 900, WHITE, GRID, 20),
+        text(108, 370, "Main conclusions", 25, INK, "700"),
+        multiline(108, 430, wrap_words(
+            f"Nearest Neighbor - Any Position achieved the best individual solution on both instances: "
+            f"{clean_number(tspa['nn_flexible']['min'])} for TSPA and {clean_number(tspb['nn_flexible']['min'])} for TSPB.", 92), 19, MUTED, line_height=29),
+        multiline(108, 544, wrap_words(
+            f"The best average result depends on the instance. For TSPA, Greedy Cycle obtained the lowest average "
+            f"objective ({clean_number(tspa['greedy_cycle']['avg'])}). For TSPB, Nearest Neighbor - End obtained the lowest average "
+            f"objective ({clean_number(tspb['nn_at_end']['avg'])}).", 92), 19, MUTED, line_height=29),
+        multiline(108, 704, wrap_words(
+            "The visualizations show that Random Solution produces routes with many long and crossing edges, while "
+            "the greedy methods generally produce more compact cycles by considering distance and node costs during construction.", 92), 19, MUTED, line_height=29),
+        multiline(108, 858, wrap_words(
+            "Allowing insertion at different positions can improve the best solution found, although it does not always "
+            "guarantee the best average performance. The greedy methods make irreversible local decisions and therefore "
+            "do not guarantee the global optimum.", 92), 19, MUTED, line_height=29),
+        multiline(108, 1012, wrap_words(
+            "The obtained solutions provide a useful starting point for more advanced methods, such as local search, "
+            "which could further improve route quality.", 92), 19, MUTED, line_height=29),
+        rect(70, 1305, 1100, 130, PALE_BLUE, "#b9d6e8", 20),
+        text(108, 1350, "SOURCE REPOSITORY", 15, BLUE, "700"),
+        text(108, 1400, REPOSITORY_URL, 18, INK, "700"),
+        text(70, 1480, "The worst solutions are presented in the final section as an additional comparison.", 17, INK, "700"),
+    ])
+    return page_end_friend(parts, number)
+
+
 def generate() -> None:
     stats = read_stats()
     times = read_times()
@@ -549,20 +903,25 @@ def generate() -> None:
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     pages = [
-        cover_page(1),
-        task_page(2),
-        algorithms_page_one(3),
-        algorithms_page_two(4),
-        results_page(5, stats, times),
-        visual_page(6, "TSPA", stats, False),
-        visual_page(7, "TSPA", stats, True),
-        visual_page(8, "TSPB", stats, False),
-        visual_page(9, "TSPB", stats, True),
-        routes_page(10, "TSPA", False),
-        routes_page(11, "TSPA", True),
-        routes_page(12, "TSPB", False),
-        routes_page(13, "TSPB", True),
-        conclusion_page(14),
+        friend_cover_page(1),
+        friend_problem_page(2),
+        friend_algorithms_page_one(3),
+        friend_results_page(4, "TSPA", stats, times),
+        friend_results_page(5, "TSPB", stats, times, True),
+        friend_visual_page(6, "TSPA", stats, False),
+        friend_visual_page(7, "TSPB", stats, False),
+        friend_conclusion_page(8, stats),
+        friend_visual_page(9, "TSPA", stats, True),
+        friend_visual_page(10, "TSPB", stats, True),
+        dark_divider_page(11),
+        friend_large_visual_page(12, "TSPA", stats, False, 0),
+        friend_large_visual_page(13, "TSPA", stats, False, 1),
+        friend_large_visual_page(14, "TSPB", stats, False, 0),
+        friend_large_visual_page(15, "TSPB", stats, False, 1),
+        friend_large_visual_page(16, "TSPA", stats, True, 0),
+        friend_large_visual_page(17, "TSPA", stats, True, 1),
+        friend_large_visual_page(18, "TSPB", stats, True, 0),
+        friend_large_visual_page(19, "TSPB", stats, True, 1),
     ]
 
     try:
