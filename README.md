@@ -10,7 +10,7 @@ The repository contains solutions and reports for the following assignments:
 
 | Assignment | Topic                                                                     | Status      |
 | ---------- | ------------------------------------------------------------------------- | ----------- |
-| 01         | Greedy heuristics                                                         | In progress |
+| 01         | Greedy heuristics                                                         |  Finished   |
 | 02         | Greedy regret heuristics                                                  | Not started |
 | 03         | Local search                                                              | Not started |
 | 04         | Candidate moves                                                           | Not started |
