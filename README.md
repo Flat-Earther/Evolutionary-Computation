@@ -11,7 +11,7 @@ The repository contains solutions and reports for the following assignments:
 | Assignment | Topic                                                                     | Status      |
 | ---------- | ------------------------------------------------------------------------- | ----------- |
 | 01         | Greedy heuristics                                                         |  Finished   |
-| 02         | Greedy regret heuristics                                                  | Not started |
+| 02         | Greedy regret heuristics                                                  | Finished   |
 | 03         | Local search                                                              | Not started |
 | 04         | Candidate moves                                                           | Not started |
 | 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
@@ -172,6 +172,83 @@ The complete analysis and conclusions are included in:
 
 ```text
 lab-01-greedy-heuristics/report.pdf
+```
+
+---
+
+# Lab 02 — Greedy Regret Heuristics
+
+The second laboratory extends the constructive methods from lab 01 with regret-based candidate selection. The new methods are tested with both insertion representations used previously:
+
+* **Extended nearest neighbor** — an open path where insertion is evaluated at the beginning, end, and every internal path position.
+* **Greedy cycle** — a closed cycle where insertion is evaluated on every current cycle edge.
+
+### Implemented methods
+
+1. **Greedy 2-regret heuristic**
+2. **Greedy weighted-sum heuristic**
+
+Each method is implemented in both forms, producing four evaluated variants: 2-regret path, 2-regret cycle, weighted regret path, and weighted regret cycle.
+
+### Greedy 2-regret heuristic
+
+For every unused node, all valid insertion positions are evaluated using the change in the objective function. Let `best_delta` and `second_delta` be the two smallest changes for a candidate node. Its regret value is:
+
+```text
+regret = second_delta - best_delta
+```
+
+The node with the largest regret is selected and inserted at its best position. A large regret means that postponing the node may force a substantially worse insertion later.
+
+For the path version, the construction starts from a selected node and keeps an open path until the required number of nodes is reached. For the cycle version, the construction starts with two nodes and maintains a closed cycle during insertion.
+
+The experiment generates **200 solutions starting from each node**.
+
+### Greedy weighted-sum heuristic
+
+The weighted method combines the regret value with the best immediate change of the objective function:
+
+```text
+score = regret_weight * regret - delta_weight * best_delta
+```
+
+The candidate with the largest score is selected. The default experiment uses equal weights (`regret_weight = 1`, `delta_weight = 1`), but other values can be tested from the command line. The experiment also generates **200 solutions starting from each node**.
+
+### Baseline methods
+
+The executable evaluates the four methods from lab 01 as well:
+
+1. **Random solution**
+2. **Nearest neighbor — append only**
+3. **Nearest neighbor — arbitrary insertion**
+4. **Greedy cycle**
+
+This keeps the run structure and output format consistent with the previous laboratory and allows direct comparison of the new regret-based methods with the earlier heuristics.
+
+## Lab 02 Evaluation
+
+For every problem instance and every method, the experiment reports:
+
+* **Minimum** objective value
+* **Maximum** objective value
+* **Average** objective value
+* **Standard deviation**
+* **Total construction time**
+
+Additionally, the best and worst solutions found by every method are saved as node-index lists and visualized in **2D**. Node costs are represented using node colour and size.
+
+The supplied instances contain 200 nodes, so each method generates 200 solutions from the possible starting nodes. The default run generated 3,200 routes in total (1,600 per instance). Every route was internally validated for exactly 100 distinct selected nodes, valid zero-based indices, and a repeated first node closing the cycle. The saved route objectives were also independently recomputed from the instance data.
+
+The evaluation results and generated data are stored in:
+
+```text
+lab-02-greedy-regret-heuristics/evaluation/
+```
+
+The complete analysis, visualizations, results, and conclusions are included in:
+
+```text
+lab-02-greedy-regret-heuristics/report.pdf
 ```
 
 ---
