@@ -1,4 +1,4 @@
-"""Generate the Lab 02 report from the evaluation CSV files and SVG plots."""
+"""Generate the Lab 02 report from Lab 01 baseline and Lab 02 regret artifacts."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 EVALUATION = ROOT / "evaluation"
+LAB01_EVALUATION = ROOT.parent / "lab-01-greedy-heuristics" / "evaluation"
 DATA_DIR = ROOT.parent / "problem-description" / "data" / "example"
 REPORT = ROOT / "report.pdf"
 BUILD = ROOT / ".report-build"
@@ -44,6 +45,9 @@ METHODS = [
     ("weighted_path", "Weighted regret - path", "weighted_path"),
     ("weighted_cycle", "Weighted regret - cycle", "weighted_cycle"),
 ]
+BASELINE_METHOD_IDS = {method_id for method_id, _, _ in METHODS[:4]}
+REGRET_METHOD_IDS = {method_id for method_id, _, _ in METHODS[4:]}
+BASELINE_METHOD_STEMS = {stem for _, _, stem in METHODS[:4]}
 
 
 def esc(value: object) -> str:
@@ -158,26 +162,53 @@ def table(parts: list[str], x: int, y: int, widths: list[int], headers: list[str
     return row_height * (len(rows) + 1)
 
 
+def read_stats_from(evaluation: Path, allowed_ids: set[str], instance: str) -> list[dict[str, str]]:
+    with (evaluation / f"{instance}_stats.csv").open(newline="", encoding="utf-8") as handle:
+        return [row for row in csv.DictReader(handle) if row["method_name"] in allowed_ids]
+
+
 def read_stats() -> dict[str, list[dict[str, str]]]:
-    result = {}
+    result: dict[str, list[dict[str, str]]] = {}
     for instance in ("TSPA", "TSPB"):
-        with (EVALUATION / f"{instance}_stats.csv").open(newline="", encoding="utf-8") as handle:
-            result[instance] = list(csv.DictReader(handle))
+        result[instance] = (
+            read_stats_from(LAB01_EVALUATION, BASELINE_METHOD_IDS, instance)
+            + read_stats_from(EVALUATION, REGRET_METHOD_IDS, instance)
+        )
     return result
 
 
 def read_times() -> dict[str, dict[str, str]]:
-    result = {}
+    result: dict[str, dict[str, str]] = {}
     for instance in ("TSPA", "TSPB"):
+        with (LAB01_EVALUATION / f"{instance}_times.csv").open(newline="", encoding="utf-8") as handle:
+            baseline = {
+                row["method_name"]: row["time"]
+                for row in csv.DictReader(handle)
+                if row["method_name"] in BASELINE_METHOD_IDS
+            }
         with (EVALUATION / f"{instance}_times.csv").open(newline="", encoding="utf-8") as handle:
-            result[instance] = {row["method_name"]: row["time"] for row in csv.DictReader(handle)}
+            regret = {
+                row["method_name"]: row["time"]
+                for row in csv.DictReader(handle)
+                if row["method_name"] in REGRET_METHOD_IDS
+            }
+        result[instance] = {**baseline, **regret}
     return result
+
+
+def artifact_root(stem: str) -> Path:
+    return LAB01_EVALUATION if stem in BASELINE_METHOD_STEMS else EVALUATION
 
 
 def read_route(instance: str, method: str, worst: bool = False) -> list[int]:
     suffix = "_worst" if worst else ""
-    path = EVALUATION / "results" / f"{instance}_{method}{suffix}.csv"
+    path = artifact_root(method) / "results" / f"{instance}_{method}{suffix}.csv"
     return [int(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def plot_path(instance: str, stem: str, worst: bool = False) -> Path:
+    suffix = "_worst" if worst else ""
+    return artifact_root(stem) / "plots" / f"{instance}_{stem}{suffix}.svg"
 
 
 def route_lines(route: list[int], max_chars: int = 68) -> list[str]:
@@ -198,7 +229,8 @@ def route_lines(route: list[int], max_chars: int = 68) -> list[str]:
 
 def render_plot(path: Path) -> Path:
     BUILD.mkdir(exist_ok=True)
-    output = BUILD / f"{path.stem}.png"
+    source_name = path.parent.parent.parent.name
+    output = BUILD / f"{source_name}_{path.stem}.png"
     if not output.exists() or output.stat().st_mtime < path.stat().st_mtime:
         magick = shutil.which("magick") or r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
         subprocess.run([magick, str(path), "-resize", "800x800", str(output)], check=True)
@@ -435,8 +467,7 @@ def visual_page(number: int, instance: str, subset: list[tuple[str, str, str]],
         objective = row["max"] if worst else row["min"]
         parts.append(rect(98, y + 92, 178, 38, PALE_ORANGE if worst else PALE_TEAL, radius=19))
         parts.append(text(187, y + 118, f"{mode.lower()} = {fmt(objective)}", 14, INK, "700", anchor="middle"))
-        suffix = "_worst" if worst else ""
-        image(parts, EVALUATION / "plots" / f"{instance}_{stem}{suffix}.svg", 350, y + 10, 310, 310)
+        image(parts, plot_path(instance, stem, worst), 350, y + 10, 310, 310)
         parts.append(text(710, y + 58, f"{mode} solution nodes:", 15, BLUE, "700"))
         route = read_route(instance, stem, worst)
         parts.append(multiline(710, y + 92, route_lines(route, 42), 12, MUTED, family="Consolas", line_height=17))
@@ -480,8 +511,7 @@ def large_visual_page(number: int, instance: str, subset: list[tuple[str, str, s
         ], 12, MUTED, line_height=18))
         parts.append(rect(810, y + 188, 210, 40, WHITE, border, 12))
         parts.append(text(915, y + 215, f"objective {fmt(objective)}", 14, INK, "700", anchor="middle"))
-        suffix = "_worst" if worst else ""
-        image(parts, EVALUATION / "plots" / f"{instance}_{stem}{suffix}.svg", 85, y + 25, 700, 700)
+        image(parts, plot_path(instance, stem, worst), 85, y + 25, 700, 700)
         parts.append(text(810, y + 270, f"{mode} solution nodes:", 16, accent, "700"))
         parts.append(multiline(810, y + 306, route_lines(route, 25), 12, INK, family="Consolas", line_height=18))
         parts.append(text(810, y + 690, f"{len(set(route[:-1]))} selected nodes; closed route", 14, accent, "700"))

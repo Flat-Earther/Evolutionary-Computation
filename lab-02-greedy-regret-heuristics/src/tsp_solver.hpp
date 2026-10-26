@@ -2,8 +2,6 @@
 
 #include "node.hpp"
 
-#include <cstdint>
-#include <random>
 #include <vector>
 
 struct Result {
@@ -14,14 +12,8 @@ struct Result {
 class TSPSolver {
 public:
     TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes,
-              double regret_weight = 1.0, double delta_weight = 1.0, std::uint32_t seed = std::random_device{}());
+              double regret_weight = 1.0, double delta_weight = 1.0);
 
-    Result randomSolution();
-    Result nearestNeighborEnd(int start_index);
-    Result nearestNeighborFlexible(int start_index);
-    Result greedyCycle(int start_index);
-
-    // Lab 02: the same regret selection rule on the two insertion representations.
     Result regret2Flexible(int start_index);
     Result regret2Cycle(int start_index);
     Result weightedRegretFlexible(int start_index);
@@ -58,5 +50,4 @@ private:
     int target_count_;
     double regret_weight_;
     double delta_weight_;
-    std::mt19937 rng_;
 };

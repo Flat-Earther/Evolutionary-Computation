@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <numeric>
 #include <stdexcept>
 
 namespace {
@@ -37,13 +36,12 @@ bool betterChoice(const TSPSolver::CandidateChoice& lhs, const TSPSolver::Candid
 }  // namespace
 
 TSPSolver::TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes,
-                     double regret_weight, double delta_weight, std::uint32_t seed)
+                     double regret_weight, double delta_weight)
     : distance_matrix_(distance_matrix),
       nodes_(nodes),
       target_count_(std::max(1, static_cast<int>(std::ceil(nodes.size() / 2.0)))),
       regret_weight_(regret_weight),
-      delta_weight_(delta_weight),
-      rng_(seed) {
+      delta_weight_(delta_weight) {
     if (nodes_.empty()) {
         throw std::invalid_argument("instance must contain at least one node");
     }
@@ -53,140 +51,6 @@ TSPSolver::TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const
     if (regret_weight_ < 0.0 || delta_weight_ < 0.0 || (regret_weight_ == 0.0 && delta_weight_ == 0.0)) {
         throw std::invalid_argument("regret and delta weights must be non-negative and not both zero");
     }
-}
-
-Result TSPSolver::randomSolution() {
-    std::vector<int> route(nodes_.size());
-    std::iota(route.begin(), route.end(), 0);
-    std::shuffle(route.begin(), route.end(), rng_);
-    route.resize(static_cast<std::size_t>(target_count_));
-    route.push_back(route.front());
-    return {route, computeTotalCost(route)};
-}
-
-Result TSPSolver::nearestNeighborEnd(int start_index) {
-    const int n = static_cast<int>(nodes_.size());
-    std::vector<int> route;
-    std::vector<char> used(n, 0);
-    route.push_back(start_index);
-    used[start_index] = 1;
-    int current = start_index;
-
-    while (static_cast<int>(route.size()) < target_count_) {
-        int best_delta = infinity;
-        int next = -1;
-        for (int node = 0; node < n; ++node) {
-            if (used[node]) {
-                continue;
-            }
-            const int delta = distance_matrix_[current][node] + nodes_[node].cost;
-            if (delta < best_delta || (delta == best_delta && node < next)) {
-                best_delta = delta;
-                next = node;
-            }
-        }
-        if (next == -1) {
-            break;
-        }
-        route.push_back(next);
-        used[next] = 1;
-        current = next;
-    }
-
-    route.push_back(route.front());
-    return {route, computeTotalCost(route)};
-}
-
-Result TSPSolver::nearestNeighborFlexible(int start_index) {
-    const int n = static_cast<int>(nodes_.size());
-    std::vector<int> route{start_index};
-    std::vector<char> used(n, 0);
-    used[start_index] = 1;
-
-    while (static_cast<int>(route.size()) < target_count_) {
-        int best_delta = infinity;
-        int best_node = -1;
-        int best_position = -1;
-
-        for (int node = 0; node < n; ++node) {
-            if (used[node]) {
-                continue;
-            }
-            for (const auto& option : pathInsertionOptions(route, node)) {
-                if (option.delta < best_delta ||
-                    (option.delta == best_delta && (best_node == -1 || node < best_node))) {
-                    best_delta = option.delta;
-                    best_node = node;
-                    best_position = option.position;
-                }
-            }
-        }
-
-        if (best_node == -1) {
-            break;
-        }
-        route.insert(route.begin() + best_position, best_node);
-        used[best_node] = 1;
-    }
-
-    route.push_back(route.front());
-    return {route, computeTotalCost(route)};
-}
-
-Result TSPSolver::greedyCycle(int start_index) {
-    const int n = static_cast<int>(nodes_.size());
-    std::vector<int> route{start_index};
-    std::vector<char> used(n, 0);
-    used[start_index] = 1;
-
-    if (target_count_ == 1) {
-        route.push_back(route.front());
-        return {route, computeTotalCost(route)};
-    }
-
-    int best_second = -1;
-    int best_delta = infinity;
-    for (int node = 0; node < n; ++node) {
-        if (used[node]) {
-            continue;
-        }
-        const int delta = 2 * distance_matrix_[start_index][node] + nodes_[node].cost;
-        if (delta < best_delta || (delta == best_delta && (best_second == -1 || node < best_second))) {
-            best_delta = delta;
-            best_second = node;
-        }
-    }
-
-    route.push_back(best_second);
-    used[best_second] = 1;
-    while (static_cast<int>(route.size()) < target_count_) {
-        int selected_node = -1;
-        int selected_position = -1;
-        int selected_delta = infinity;
-
-        for (int node = 0; node < n; ++node) {
-            if (used[node]) {
-                continue;
-            }
-            for (const auto& option : cycleInsertionOptions(route, node)) {
-                if (option.delta < selected_delta ||
-                    (option.delta == selected_delta && (selected_node == -1 || node < selected_node))) {
-                    selected_delta = option.delta;
-                    selected_node = node;
-                    selected_position = option.position;
-                }
-            }
-        }
-
-        if (selected_node == -1) {
-            break;
-        }
-        route.insert(route.begin() + selected_position, selected_node);
-        used[selected_node] = 1;
-    }
-
-    route.push_back(route.front());
-    return {route, computeTotalCost(route)};
 }
 
 Result TSPSolver::regret2Flexible(int start_index) {

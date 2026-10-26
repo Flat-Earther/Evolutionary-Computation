@@ -1,9 +1,5 @@
 method_name,time
-random_sol,2
-nn_at_end,88
-nn_flexible,21143
-greedy_cycle,11978
-regret2_path,21526
-regret2_cycle,12376
-weighted_path,21631
-weighted_cycle,12443
+regret2_path,20569
+regret2_cycle,15274
+weighted_path,20546
+weighted_cycle,15081

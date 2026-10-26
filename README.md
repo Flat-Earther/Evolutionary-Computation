@@ -214,20 +214,21 @@ score = regret_weight * regret - delta_weight * best_delta
 
 The candidate with the largest score is selected. The default experiment uses equal weights (`regret_weight = 1`, `delta_weight = 1`), but other values can be tested from the command line. The experiment also generates **200 solutions starting from each node**.
 
-### Baseline methods
+### Comparison with Lab 01
 
-The executable evaluates the four methods from lab 01 as well:
+The Lab 02 executable contains only the four regret-based variants described above. The Lab 01 methods are not duplicated in the Lab 02 source code or rerun by its executable.
 
-1. **Random solution**
-2. **Nearest neighbor — append only**
-3. **Nearest neighbor — arbitrary insertion**
-4. **Greedy cycle**
+For direct comparison, the Lab 02 report generator imports the Lab 01 baseline statistics, runtimes, routes, and visualisation artifacts from:
 
-This keeps the run structure and output format consistent with the previous laboratory and allows direct comparison of the new regret-based methods with the earlier heuristics.
+```text
+lab-01-greedy-heuristics/evaluation/
+```
+
+The report therefore compares the new regret methods with the earlier heuristics without duplicating their implementation.
 
 ## Lab 02 Evaluation
 
-For every problem instance and every method, the experiment reports:
+For every problem instance and every Lab 02 regret method, the experiment reports:
 
 * **Minimum** objective value
 * **Maximum** objective value
@@ -235,14 +236,15 @@ For every problem instance and every method, the experiment reports:
 * **Standard deviation**
 * **Total construction time**
 
-Additionally, the best and worst solutions found by every method are saved as node-index lists and visualized in **2D**. Node costs are represented using node colour and size.
+Additionally, the best and worst solutions found by each Lab 02 method are saved as node-index lists and visualized in **2D**. Node costs are represented using node colour and size. The report uses the corresponding Lab 01 evaluation artifacts for the baseline comparison rows.
 
-The supplied instances contain 200 nodes, so each method generates 200 solutions from the possible starting nodes. The default run generated 3,200 routes in total (1,600 per instance). Every route was internally validated for exactly 100 distinct selected nodes, valid zero-based indices, and a repeated first node closing the cycle. The saved route objectives were also independently recomputed from the instance data.
+The supplied instances contain 200 nodes, so each Lab 02 method generates 200 solutions from the possible starting nodes. The default run generates 1,600 routes in total (800 per instance). Every route is internally validated for exactly 100 distinct selected nodes, valid zero-based indices, and a repeated first node closing the cycle. The saved route objectives are also independently recomputed from the instance data.
 
 The evaluation results and generated data are stored in:
 
 ```text
-lab-02-greedy-regret-heuristics/evaluation/
+lab-02-greedy-regret-heuristics/evaluation/   # regret-method artifacts
+lab-01-greedy-heuristics/evaluation/           # imported baseline artifacts
 ```
 
 The complete analysis, visualizations, results, and conclusions are included in:

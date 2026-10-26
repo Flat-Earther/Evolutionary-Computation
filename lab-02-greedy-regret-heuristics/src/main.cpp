@@ -100,16 +100,6 @@ void runInstance(const std::string& instance_name, const Options& options, const
               << " * best_delta\n";
 
     std::vector<MethodRun> methods;
-    methods.push_back({"random_sol", "random", "Random", [&](int) { return solver.randomSolution(); }, {}, 0});
-    methods.push_back({"nn_at_end", "nn_end", "NN at the end", [&](int start) {
-                           return solver.nearestNeighborEnd(start);
-                       }, {}, 0});
-    methods.push_back({"nn_flexible", "nn_flexible", "NN flexible", [&](int start) {
-                           return solver.nearestNeighborFlexible(start);
-                       }, {}, 0});
-    methods.push_back({"greedy_cycle", "greedy_cycle", "Greedy cycle", [&](int start) {
-                           return solver.greedyCycle(start);
-                       }, {}, 0});
     methods.push_back({"regret2_path", "regret2_path", "2-regret path", [&](int start) {
                            return solver.regret2Flexible(start);
                        }, {}, 0});
