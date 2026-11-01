@@ -1,0 +1,9 @@
+method_name,min,max,avg,sd
+random_steepest_node,82160.00,98199.00,90222.24,3156.86
+random_steepest_2opt,74843.00,80029.00,77283.76,1093.08
+random_greedy_node,82330.00,95592.00,87940.23,2624.77
+random_greedy_2opt,74948.00,80421.00,77398.37,956.95
+greedy_steepest_node,71955.00,74861.00,72983.04,773.21
+greedy_steepest_2opt,71955.00,74700.00,73003.71,731.49
+greedy_greedy_node,71955.00,74861.00,72984.80,769.40
+greedy_greedy_2opt,71955.00,74844.00,73015.66,744.31

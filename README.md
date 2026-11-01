@@ -13,7 +13,7 @@ The repository contains solutions and reports for the following assignments:
 | 01         | Greedy heuristics                                                         |  Finished   |
 | 02         | Greedy regret heuristics                                                  | Finished   |
 | 02.5       | Reversed traversal of regret heuristics                                   | Finished   |
-| 03         | Local search                                                              | Not started |
+| 03         | Local search                                                              | Finished   |
 | 04         | Candidate moves                                                           | Not started |
 | 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
 | 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Not started |
@@ -271,6 +271,30 @@ The complete report is available at:
 
 ```text
 lab-02,5-greedy-regret-heuristics-the-other-way/report.pdf
+```
+
+---
+
+---
+
+# Lab 03 — Local Search
+
+The third laboratory improves feasible cycles through local search. It combines random and best-constructive starting solutions with steepest and greedy search strategies, two intra-route neighborhoods (node exchange and 2-opt), and inter-route selected-to-unselected node exchange.
+
+The eight resulting variants are evaluated on both TSPA and TSPB. Each method is run 200 times per instance, and the evaluation records objective statistics, runtime, best and worst routes, and visualizations.
+
+The report compares all algorithms from Labs 01, 02, and 03 in a new `average(minimum - maximum)` table, while retaining the detailed legacy statistics tables from the previous reports.
+
+The complete implementation and report are available in:
+
+```text
+lab-03-local-search/
+```
+
+The final report is available at:
+
+```text
+lab-03-local-search/report.pdf
 ```
 
 ---
