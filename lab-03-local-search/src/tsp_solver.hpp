@@ -30,8 +30,6 @@ public:
                        std::mt19937& rng) const;
 
     int targetCount() const { return target_count_; }
-    int nodeCount() const { return static_cast<int>(nodes_.size()); }
-    int objective(const std::vector<int>& route) const;
 
 private:
     enum class MoveType {
@@ -46,7 +44,6 @@ private:
         int second;
     };
 
-public:
     struct InsertionOption {
         int delta = 0;
         int position = -1;
@@ -59,8 +56,8 @@ public:
         double score = 0.0;
     };
 
-private:
-
+    static bool betterChoice(const CandidateChoice& lhs, const CandidateChoice& rhs, bool weighted);
+    int objective(const std::vector<int>& route) const;
     std::vector<Move> neighborhood(const std::vector<int>& route, IntraNeighborhood intra) const;
     int moveDelta(const std::vector<int>& route, const Move& move) const;
     void applyMove(std::vector<int>& route, const Move& move) const;

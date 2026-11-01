@@ -11,7 +11,9 @@ namespace {
 
 constexpr double epsilon = 1e-9;
 
-bool betterChoice(const TSPSolver::CandidateChoice& lhs, const TSPSolver::CandidateChoice& rhs, bool weighted) {
+}  // namespace
+
+bool TSPSolver::betterChoice(const CandidateChoice& lhs, const CandidateChoice& rhs, bool weighted) {
     if (lhs.node == -1) {
         return false;
     }
@@ -29,8 +31,6 @@ bool betterChoice(const TSPSolver::CandidateChoice& lhs, const TSPSolver::Candid
     }
     return lhs.node < rhs.node;
 }
-
-}  // namespace
 
 TSPSolver::TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes)
     : distance_matrix_(distance_matrix),
