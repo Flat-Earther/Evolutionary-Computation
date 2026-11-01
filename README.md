@@ -12,6 +12,7 @@ The repository contains solutions and reports for the following assignments:
 | ---------- | ------------------------------------------------------------------------- | ----------- |
 | 01         | Greedy heuristics                                                         |  Finished   |
 | 02         | Greedy regret heuristics                                                  | Finished   |
+| 02.5       | Reversed traversal of regret heuristics                                   | Finished   |
 | 03         | Local search                                                              | Not started |
 | 04         | Candidate moves                                                           | Not started |
 | 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
@@ -67,6 +68,11 @@ More detailed information about the problem can be found in [`problem-descriptio
 │   └── report.pdf
 │
 ├── lab-02-greedy-regret-heuristics/
+│   ├── src/
+│   ├── evaluation/
+│   └── report.pdf
+│
+├── lab-02,5-greedy-regret-heuristics-the-other-way/
 │   ├── src/
 │   ├── evaluation/
 │   └── report.pdf
@@ -251,6 +257,20 @@ The complete analysis, visualizations, results, and conclusions are included in:
 
 ```text
 lab-02-greedy-regret-heuristics/report.pdf
+```
+
+---
+
+# Lab 02.5 — Reversed Regret Traversal
+
+Lab 02.5 keeps the four regret-based methods from Lab 02 but reverses the traversal order used while evaluating candidates. Instead of processing one node and then all of its insertion options, the implementation processes one insertion option across all unused nodes before moving to the next option.
+
+The report compares the reversed methods with both the original Lab 02 regret results and the Lab 01 baseline results. Original Lab 02 artifacts are read from `lab-02-greedy-regret-heuristics/evaluation/`, while the new reversed artifacts are stored in `lab-02,5-greedy-regret-heuristics-the-other-way/evaluation/`.
+
+The complete report is available at:
+
+```text
+lab-02,5-greedy-regret-heuristics-the-other-way/report.pdf
 ```
 
 ---

@@ -1,0 +1,5 @@
+method_name,min,max,avg,sd
+regret2_path_reversed,110950.00,135771.00,121360.29,4128.15
+regret2_cycle_reversed,112806.00,128089.00,120378.77,3616.89
+weighted_path_reversed,72419.00,78504.00,75541.25,1557.20
+weighted_cycle_reversed,72011.00,75532.00,73353.49,907.30
