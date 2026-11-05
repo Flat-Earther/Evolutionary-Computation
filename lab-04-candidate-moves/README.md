@@ -4,7 +4,7 @@ This laboratory accelerates the steepest local search from Lab 03 by evaluating 
 
 ## Methods and parameter experiment
 
-The experiment evaluates the full-neighborhood baseline and a candidate-move method for several candidate-list sizes. By default it tests `k = 5, 10, 15, 20`. All methods use the same 200 pre-generated random starting cycles for a given instance:
+The experiment evaluates the full-neighborhood baseline and a candidate-move method for several candidate-list sizes. By default it tests `k = 1, 5, 10, 15, 20, 30, 50`. The `k = 1` case uses only the single nearest candidate edge from each endpoint. All methods use the same 200 pre-generated random starting cycles for a given instance:
 
 1. **Steepest local search - full neighborhood**
    - evaluates every valid 2-opt move;
@@ -13,7 +13,8 @@ The experiment evaluates the full-neighborhood baseline and a candidate-move met
 2. **Steepest local search - candidate moves (`k`)**
    - uses the same steepest rule;
    - evaluates only moves that introduce at least one candidate edge;
-   - is run separately for every tested candidate-list size.
+   - is run separately for every tested candidate-list size;
+   - the `k = 1` variant is reported as the single-nearest-candidate case.
 
 For intra-route moves, the `k` nearest vertices are ranked by edge length. For inter-route moves, they are ranked by edge length plus the costs of the two vertices. Candidate edges are stored symmetrically, so an edge selected by either endpoint is available to the candidate-move generator.
 
@@ -49,7 +50,7 @@ build/lab04.exe --seed 20260404
 The executable accepts `TSPA` or `TSPB` to run one instance, `--data-dir DIR` to override the data location, and `--candidate-counts K1,K2,...` to select the candidate-list sizes. For example:
 
 ```text
-build/lab04.exe --candidate-counts 3,5,10,20,30 --seed 20260404
+build/lab04.exe --candidate-counts 1,5,10,15,20,30,50 --seed 20260404
 ```
 
 The singular `--candidate-count K` option remains available for running one candidate-list size.
@@ -60,4 +61,8 @@ Evaluation artifacts are written to:
 lab-04-candidate-moves/evaluation/
 ```
 
-No report is generated for this laboratory yet.
+The generated report is available at:
+
+```text
+lab-04-candidate-moves/report.pdf
+```

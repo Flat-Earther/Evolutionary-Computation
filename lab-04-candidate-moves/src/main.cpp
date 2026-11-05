@@ -43,7 +43,7 @@ struct MethodRun {
 struct Options {
     std::string data_dir;
     unsigned int seed = 20260404U;
-    std::vector<int> candidate_counts = {5, 10, 15, 20};
+    std::vector<int> candidate_counts = {1, 5, 10, 15, 20, 30, 50};
     std::vector<std::string> instances;
 };
 
@@ -140,8 +140,11 @@ std::vector<MethodConfig> makeMethodConfigs(const std::vector<int>& candidate_co
         {"steepest_2opt", "Steepest local search - full neighborhood", false, 0},
     };
     for (int candidate_count : candidate_counts) {
+        const std::string label = candidate_count == 1
+                                      ? "Steepest local search - candidate moves (k=1, nearest)"
+                                      : "Steepest local search - candidate moves (k=" + std::to_string(candidate_count) + ")";
         configs.push_back({"candidate_k" + std::to_string(candidate_count),
-                           "Steepest local search - candidate moves (k=" + std::to_string(candidate_count) + ")",
+                           label,
                            true,
                            candidate_count});
     }
