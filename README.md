@@ -14,7 +14,7 @@ The repository contains solutions and reports for the following assignments:
 | 02         | Greedy regret heuristics                                                  | Finished   |
 | 02.5       | Reversed traversal of regret heuristics                                   | Finished   |
 | 03         | Local search                                                              | Finished   |
-| 04         | Candidate moves                                                           | Not started |
+| 04         | Candidate moves                                                           | Code finished; report pending |
 | 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
 | 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Not started |
 | 07         | Large Neighborhood Search                                                 | Not started |
@@ -296,6 +296,24 @@ The final report is available at:
 ```text
 lab-03-local-search/report.pdf
 ```
+
+---
+
+# Lab 04 - Candidate Moves
+
+The fourth laboratory accelerates the steepest 2-opt local search using candidate moves. It compares the full 2-opt plus inter-route neighborhood with a candidate-only neighborhood, using the same 200 random starting solutions for both methods on each instance.
+
+For intra-route moves, candidate edges are selected from the `k` nearest vertices by edge length. For inter-route moves, the ranking also includes vertex costs. The default parameter experiment tests `k = 5, 10, 15, 20`. Candidate moves are generated directly from these lists and must introduce at least one candidate edge; the candidate implementation does not enumerate the full neighborhood and filter it afterwards.
+
+The evaluation records objective statistics, best and worst routes, visualizations, and per-run runtime statistics. Runtime files report average, minimum, and maximum run time in milliseconds rather than only a total.
+
+The code and evaluation artifacts are available in:
+
+```text
+lab-04-candidate-moves/
+```
+
+No Lab 04 report has been generated yet.
 
 ---
 

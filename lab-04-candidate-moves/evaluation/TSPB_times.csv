@@ -1,0 +1,6 @@
+method_name,candidate_count,average_ms,minimum_ms,maximum_ms
+steepest_2opt,0,19.445396,15.427500,87.069400
+candidate_k5,5,3.063342,2.466300,5.365800
+candidate_k10,10,5.342527,4.259900,10.586400
+candidate_k15,15,7.299018,5.968000,10.176300
+candidate_k20,20,9.385899,7.756600,15.509200
