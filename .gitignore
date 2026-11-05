@@ -1,6 +1,10 @@
 build/
 build-*/
 cmake-build-*/
+.cmake-build/
+.manual-build/
+.report-build/
+__pycache__/
 .vs/
 .idea/
 *.exe
