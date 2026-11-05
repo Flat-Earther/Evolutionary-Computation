@@ -530,9 +530,9 @@ def visual_page(number: int, instance: str, subset: list[tuple[str, str, int]],
                           f"min = {fmt(runtime['minimum_ms'])}   max = {fmt(runtime['maximum_ms'])}",
                           10, MUTED, anchor="middle"))
         image(parts, plot_path(instance, method_id, worst), 365, y + 4, 320, 320)
-        parts.append(text(710, y + 48, f"{mode} solution nodes:", 14, BLUE, "700"))
-        parts.append(multiline(710, y + 78, route_lines(read_route(instance, method_id, worst), 43), 11, MUTED,
-                               family="Consolas", line_height=14))
+        parts.append(text(710, y + 48, f"{mode} solution nodes:", 16, BLUE, "700"))
+        parts.append(multiline(710, y + 82, route_lines(read_route(instance, method_id, worst), 50), 13, MUTED,
+                               family="Consolas", line_height=16))
         if not worst and method_id == best_method_id:
             crown_icon(parts, 1110, y + 270)
         if worst and method_id == worst_method_id:
