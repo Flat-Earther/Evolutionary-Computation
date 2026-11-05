@@ -364,9 +364,9 @@ def table(parts: list[str], x: int, y: int, widths: list[int], headers: list[str
             parts.append(text(cursor + width / 2, row_y + row_height / 2 + cell_font_size * 0.35,
                               value, cell_font_size, INK, weight, anchor="middle"))
             if symbols.get(cell) == "crown":
-                crown_icon(parts, cursor + width - 35, row_y + 9, size=22)
+                crown_icon(parts, cursor + width - 55, row_y + 9, size=22)
             elif symbols.get(cell) == "warning":
-                warning_icon(parts, cursor + width - 35, row_y + 8, size=22)
+                warning_icon(parts, cursor + width - 55, row_y + 8, size=22)
             cursor += width
     parts.append(rect(x, y, total, row_height * (len(rows) + 1), "none", GRID, 8))
     return row_height * (len(rows) + 1)
