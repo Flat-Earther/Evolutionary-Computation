@@ -93,6 +93,28 @@ def circle(cx: float, cy: float, radius: float, fill: str, opacity: float = 1.0)
     return f'<circle cx="{cx}" cy="{cy}" r="{radius}" fill="{fill}" opacity="{opacity}"/>'
 
 
+def crown_icon(parts: list[str], x: float, y: float, fill: str = "#e0a100", size: float = 42) -> None:
+    scale = size / 42
+    parts.append(
+        f'<polygon points="{x},{y + 7 * scale} {x + 10 * scale},{y + 25 * scale} '
+        f'{x + 21 * scale},{y + 5 * scale} {x + 32 * scale},{y + 25 * scale} '
+        f'{x + 42 * scale},{y + 7 * scale} {x + 37 * scale},{y + 34 * scale} '
+        f'{x + 5 * scale},{y + 34 * scale}" fill="{fill}" stroke="none"/>'
+    )
+    parts.append(rect(x + 6 * scale, y + 34 * scale, 30 * scale, 5 * scale, fill,
+                      stroke="none", radius=1))
+
+
+def warning_icon(parts: list[str], x: float, y: float, fill: str = "#d85d36", size: float = 42) -> None:
+    scale = size / 42
+    parts.append(
+        f'<polygon points="{x + 21 * scale},{y} {x + 42 * scale},{y + 21 * scale} '
+        f'{x + 21 * scale},{y + 42 * scale} {x},{y + 21 * scale}" '
+        f'fill="{fill}" stroke="none"/>'
+    )
+    parts.append(text(x + 21 * scale, y + 30 * scale, "!", 26 * scale, WHITE, "700", anchor="middle"))
+
+
 def page_start(title: str, kicker: str, number: int) -> list[str]:
     return [
         f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
@@ -316,10 +338,12 @@ def fmt(value: str | float | int, places: int = 2) -> str:
 def table(parts: list[str], x: int, y: int, widths: list[int], headers: list[str], rows: list[list[str]],
           row_height: int = 44, font_size: int = 15,
           highlight_cells: dict[tuple[int, int], str] | None = None,
-          bold_cells: set[tuple[int, int]] | None = None) -> int:
+          bold_cells: set[tuple[int, int]] | None = None,
+          symbols: dict[tuple[int, int], str] | None = None) -> int:
     total = sum(widths)
     highlight_cells = highlight_cells or {}
     bold_cells = bold_cells or set()
+    symbols = symbols or {}
     parts.append(rect(x, y, total, row_height, NAVY, radius=8))
     cursor = x
     for width, header in zip(widths, headers):
@@ -339,6 +363,10 @@ def table(parts: list[str], x: int, y: int, widths: list[int], headers: list[str
             cell_font_size = font_size + 2 if cell in bold_cells else font_size
             parts.append(text(cursor + width / 2, row_y + row_height / 2 + cell_font_size * 0.35,
                               value, cell_font_size, INK, weight, anchor="middle"))
+            if symbols.get(cell) == "crown":
+                crown_icon(parts, cursor + width - 35, row_y + 9, size=22)
+            elif symbols.get(cell) == "warning":
+                warning_icon(parts, cursor + width - 35, row_y + 8, size=22)
             cursor += width
     parts.append(rect(x, y, total, row_height * (len(rows) + 1), "none", GRID, 8))
     return row_height * (len(rows) + 1)
@@ -372,8 +400,16 @@ def comparison_page(number: int, stats: dict[str, list[dict[str, str]]],
 
     tspa_score_best = min(range(len(METHODS)), key=lambda index: float(rows_scores[index][1].split("(")[0]))
     tspb_score_best = min(range(len(METHODS)), key=lambda index: float(rows_scores[index][2].split("(")[0]))
+    tspa_min_best = min(range(len(METHODS)), key=lambda index: float(score_by_instance["TSPA"][METHODS[index][0]]["min"]))
+    tspb_min_best = min(range(len(METHODS)), key=lambda index: float(score_by_instance["TSPB"][METHODS[index][0]]["min"]))
+    tspa_max_worst = max(range(len(METHODS)), key=lambda index: float(score_by_instance["TSPA"][METHODS[index][0]]["max"]))
+    tspb_max_worst = max(range(len(METHODS)), key=lambda index: float(score_by_instance["TSPB"][METHODS[index][0]]["max"]))
     tspa_time_best = min(range(len(METHODS)), key=lambda index: float(rows_times[index][1].split("(")[0]))
     tspb_time_best = min(range(len(METHODS)), key=lambda index: float(rows_times[index][2].split("(")[0]))
+    tspa_time_min = min(range(len(METHODS)), key=lambda index: float(time_by_instance["TSPA"][METHODS[index][0]]["minimum_ms"]))
+    tspb_time_min = min(range(len(METHODS)), key=lambda index: float(time_by_instance["TSPB"][METHODS[index][0]]["minimum_ms"]))
+    tspa_time_max = max(range(len(METHODS)), key=lambda index: float(time_by_instance["TSPA"][METHODS[index][0]]["maximum_ms"]))
+    tspb_time_max = max(range(len(METHODS)), key=lambda index: float(time_by_instance["TSPB"][METHODS[index][0]]["maximum_ms"]))
 
     text_y = 175
     parts.extend([
@@ -382,13 +418,17 @@ def comparison_page(number: int, stats: dict[str, list[dict[str, str]]],
     table(parts, 70, 205, [380, 360, 360], ["Algorithm", "TSPA", "TSPB"], rows_scores,
           row_height=40, font_size=14,
           highlight_cells={(tspa_score_best, 1): BEST_SCORE, (tspb_score_best, 2): BEST_SCORE},
-          bold_cells={(tspa_score_best, 1), (tspb_score_best, 2)})
+          bold_cells={(tspa_score_best, 1), (tspb_score_best, 2)},
+          symbols={(tspa_min_best, 1): "crown", (tspb_min_best, 2): "crown",
+                   (tspa_max_worst, 1): "warning", (tspb_max_worst, 2): "warning"})
 
     parts.append(text(70, 600, "Runtime: average (minimum - maximum) milliseconds; lower values are better.", 20, INK, "700"))
     table(parts, 70, 630, [380, 360, 360], ["Algorithm", "TSPA", "TSPB"], rows_times,
           row_height=40, font_size=13,
           highlight_cells={(tspa_time_best, 1): BEST_TIME, (tspb_time_best, 2): BEST_TIME},
-          bold_cells={(tspa_time_best, 1), (tspb_time_best, 2)})
+          bold_cells={(tspa_time_best, 1), (tspb_time_best, 2)},
+          symbols={(tspa_time_min, 1): "crown", (tspb_time_min, 2): "crown",
+                   (tspa_time_max, 1): "warning", (tspb_time_max, 2): "warning"})
 
     best_score_tspa = METHODS[tspa_score_best][0]
     best_score_tspb = METHODS[tspb_score_best][0]
@@ -399,6 +439,12 @@ def comparison_page(number: int, stats: dict[str, list[dict[str, str]]],
         text(98, 1050, "lowest average objective", 15, MUTED),
         rect(330, 1035, 18, 18, BEST_TIME, radius=4),
         text(358, 1050, "lowest average runtime", 15, MUTED),
+        text(630, 1050, "lowest minimum score/time", 15, MUTED),
+        text(880, 1050, "highest maximum score/time", 15, MUTED),
+    ])
+    crown_icon(parts, 600, 1031, size=22)
+    warning_icon(parts, 850, 1029, size=22)
+    parts.extend([
         rect(70, 1090, 1100, 270, PALE_TEAL, radius=20),
         text(108, 1138, "Best results in the comparison", 24, INK, "700"),
         multiline(108, 1190, [
@@ -462,6 +508,8 @@ def visual_page(number: int, instance: str, subset: list[tuple[str, str, int]],
     parts.append(text(70, 160, "The plots show node cost using colour and size. The line represents the closed cycle.", 17, MUTED))
     stats_by_id = {row["method_name"]: row for row in stats[instance]}
     labels = {method_id: label for method_id, label, _ in METHODS}
+    best_method_id = min(stats[instance], key=lambda row: float(row["min"]))["method_name"]
+    worst_method_id = max(stats[instance], key=lambda row: float(row["max"]))["method_name"]
     for index, (method_id, _, _) in enumerate(subset):
         y = 195 + index * 365
         row = stats_by_id[method_id]
@@ -476,6 +524,10 @@ def visual_page(number: int, instance: str, subset: list[tuple[str, str, int]],
         parts.append(text(710, y + 48, f"{mode} solution nodes:", 14, BLUE, "700"))
         parts.append(multiline(710, y + 78, route_lines(read_route(instance, method_id, worst), 43), 11, MUTED,
                                family="Consolas", line_height=14))
+        if not worst and method_id == best_method_id:
+            crown_icon(parts, 1110, y + 270)
+        if worst and method_id == worst_method_id:
+            warning_icon(parts, 1110, y + 265)
     return page_end(parts, number)
 
 
