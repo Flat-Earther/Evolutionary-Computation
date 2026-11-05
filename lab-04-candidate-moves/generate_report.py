@@ -501,12 +501,14 @@ def plot_path(instance: str, method_id: str, worst: bool = False) -> Path:
 
 
 def visual_page(number: int, instance: str, subset: list[tuple[str, str, int]],
-                stats: dict[str, list[dict[str, str]]], worst: bool = False) -> str:
+                stats: dict[str, list[dict[str, str]]],
+                times: dict[str, list[dict[str, str]]], worst: bool = False) -> str:
     mode = "Worst" if worst else "Best"
     section = "5 - worst solutions" if worst else "4 - best solutions"
     parts = page_start(f"{section.split(' - ')[0]}. {mode} solutions - {instance}", section, number)
     parts.append(text(70, 160, "The plots show node cost using colour and size. The line represents the closed cycle.", 17, MUTED))
     stats_by_id = {row["method_name"]: row for row in stats[instance]}
+    times_by_id = {row["method_name"]: row for row in times[instance]}
     labels = {method_id: label for method_id, label, _ in METHODS}
     best_method_id = min(stats[instance], key=lambda row: float(row["min"]))["method_name"]
     worst_method_id = max(stats[instance], key=lambda row: float(row["max"]))["method_name"]
@@ -518,8 +520,15 @@ def visual_page(number: int, instance: str, subset: list[tuple[str, str, int]],
         parts.append(text(98, y + 30, visual_label, 17 if len(visual_label) < 33 else 15, INK, "700"))
         parts.append(text(98, y + 56, f"min={fmt(row['min'], 0)}  max={fmt(row['max'], 0)}  avg={fmt(row['avg'])}", 13, MUTED))
         objective = row["max"] if worst else row["min"]
-        parts.append(rect(98, y + 75, 170, 34, PALE_ORANGE if worst else PALE_TEAL, radius=17))
-        parts.append(text(183, y + 98, f"{mode.lower()} = {fmt(objective, 0)}", 13, INK, "700", anchor="middle"))
+        parts.append(rect(125, y + 93, 185, 34, PALE_ORANGE if worst else PALE_TEAL, radius=17))
+        parts.append(text(217.5, y + 116, f"{mode.lower()} = {fmt(objective, 0)}", 13, INK, "700", anchor="middle"))
+        runtime = times_by_id[method_id]
+        parts.append(rect(125, y + 176, 185, 92, PALE_BLUE, "#b9d6e8", 14))
+        parts.append(text(217.5, y + 199, "TIME (ms)", 11, BLUE, "700", anchor="middle"))
+        parts.append(text(217.5, y + 224, f"avg = {fmt(runtime['average_ms'])}", 12, INK, "700", anchor="middle"))
+        parts.append(text(217.5, y + 246,
+                          f"min = {fmt(runtime['minimum_ms'])}   max = {fmt(runtime['maximum_ms'])}",
+                          10, MUTED, anchor="middle"))
         image(parts, plot_path(instance, method_id, worst), 365, y + 4, 320, 320)
         parts.append(text(710, y + 48, f"{mode} solution nodes:", 14, BLUE, "700"))
         parts.append(multiline(710, y + 78, route_lines(read_route(instance, method_id, worst), 43), 11, MUTED,
@@ -634,10 +643,10 @@ def main() -> None:
     ]
     for instance in ("TSPA", "TSPB"):
         for subset in subsets:
-            pages.append(visual_page(len(pages) + 1, instance, subset, stats))
+            pages.append(visual_page(len(pages) + 1, instance, subset, stats, times))
     for instance in ("TSPA", "TSPB"):
         for subset in subsets:
-            pages.append(visual_page(len(pages) + 1, instance, subset, stats, True))
+            pages.append(visual_page(len(pages) + 1, instance, subset, stats, times, True))
     pages.append(conclusions_page(len(pages) + 1, stats, times))
     pages.append(dark_divider_page(len(pages) + 1))
     for instance in ("TSPA", "TSPB"):
