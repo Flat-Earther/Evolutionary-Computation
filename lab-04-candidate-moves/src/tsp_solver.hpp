@@ -10,10 +10,16 @@ struct Result {
     int total_cost = 0;
 };
 
+enum class CandidateRanking {
+    DistanceIntraPlusCostsInter,
+    DistancePlusNodeCostsForAll,
+};
+
 class TSPSolver {
 public:
     TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes,
-              int candidate_count = 10);
+              int candidate_count = 10,
+              CandidateRanking candidate_ranking = CandidateRanking::DistanceIntraPlusCostsInter);
 
     Result randomStartingSolution(std::mt19937& rng) const;
     Result steepestLocalSearch(const Result& initial, bool use_candidate_moves) const;
@@ -43,6 +49,7 @@ private:
 
     const std::vector<std::vector<int>>& distance_matrix_;
     const std::vector<Node>& nodes_;
+    CandidateRanking candidate_ranking_;
     std::vector<std::vector<int>> intra_candidates_;
     std::vector<std::vector<int>> inter_candidates_;
     int target_count_;

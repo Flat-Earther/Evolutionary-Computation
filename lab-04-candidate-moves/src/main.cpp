@@ -40,11 +40,25 @@ struct MethodRun {
     TimeStats time;
 };
 
+struct RankingMethodConfig {
+    std::string id;
+    std::string label;
+    int candidate_count = 0;
+    CandidateRanking ranking = CandidateRanking::DistanceIntraPlusCostsInter;
+};
+
+struct RankingMethodRun {
+    RankingMethodConfig config;
+    SolutionSpace space;
+    TimeStats time;
+};
+
 struct Options {
     std::string data_dir;
     unsigned int seed = 20260404U;
     std::vector<int> candidate_counts = {1, 5, 10, 15, 20, 30, 50};
     std::vector<std::string> instances;
+    bool ranking_experiment = false;
 };
 
 namespace {
@@ -119,6 +133,33 @@ void writeStats(const fs::path& path, const std::vector<MethodRun>& methods) {
     }
 }
 
+void writeRankingTimes(const fs::path& path, const std::vector<RankingMethodRun>& methods) {
+    std::ofstream out(path);
+    if (!out) {
+        throw std::runtime_error("cannot write " + path.string());
+    }
+    out << "method_name,candidate_count,ranking,average_ms,minimum_ms,maximum_ms\n";
+    out << std::fixed << std::setprecision(6);
+    for (const auto& method : methods) {
+        out << method.config.id << ',' << method.config.candidate_count << ',' << method.config.label << ','
+            << method.time.average_ms << ',' << method.time.minimum_ms << ',' << method.time.maximum_ms << '\n';
+    }
+}
+
+void writeRankingStats(const fs::path& path, const std::vector<RankingMethodRun>& methods) {
+    std::ofstream out(path);
+    if (!out) {
+        throw std::runtime_error("cannot write " + path.string());
+    }
+    out << "method_name,candidate_count,ranking,min,max,avg,sd\n";
+    out << std::fixed << std::setprecision(2);
+    for (const auto& method : methods) {
+        const Stats stats = method.space.stats();
+        out << method.config.id << ',' << method.config.candidate_count << ',' << method.config.label << ','
+            << stats.min << ',' << stats.max << ',' << stats.avg << ',' << stats.sd << '\n';
+    }
+}
+
 std::vector<int> parseCandidateCounts(const std::string& value) {
     std::vector<int> counts;
     std::stringstream stream(value);
@@ -147,6 +188,21 @@ std::vector<MethodConfig> makeMethodConfigs(const std::vector<int>& candidate_co
                            label,
                            true,
                            candidate_count});
+    }
+    return configs;
+}
+
+std::vector<RankingMethodConfig> makeRankingMethodConfigs(const std::vector<int>& candidate_counts) {
+    std::vector<RankingMethodConfig> configs;
+    for (int candidate_count : candidate_counts) {
+        configs.push_back({"distance_intra_costs_inter_k" + std::to_string(candidate_count),
+                           "Distance intra + costs inter",
+                           candidate_count,
+                           CandidateRanking::DistanceIntraPlusCostsInter});
+        configs.push_back({"distance_plus_costs_all_k" + std::to_string(candidate_count),
+                           "Distance + costs intra/inter",
+                           candidate_count,
+                           CandidateRanking::DistancePlusNodeCostsForAll});
     }
     return configs;
 }
@@ -247,6 +303,70 @@ void runInstance(const std::string& instance_name, const Options& options, const
     }
 }
 
+void runRankingExperiment(const std::string& instance_name, const Options& options, const fs::path& lab_dir) {
+    const std::string data_path = findDataFile(instance_name, options.data_dir);
+    const std::vector<Node> nodes = loadInstance(data_path);
+    const DistanceMatrix distances(nodes);
+    const int node_count = static_cast<int>(nodes.size());
+    for (int candidate_count : options.candidate_counts) {
+        if (candidate_count <= 0 || candidate_count >= node_count) {
+            throw std::invalid_argument("candidate count must be positive and smaller than the instance size");
+        }
+    }
+
+    const std::vector<RankingMethodConfig> configs = makeRankingMethodConfigs(options.candidate_counts);
+    const TSPSolver start_solver(distances.matrix(), nodes, 1);
+    const unsigned int start_seed = options.seed
+                                    ^ static_cast<unsigned int>(instance_name == "TSPB" ? 0xB00B : 0xA11A);
+    std::mt19937 start_rng(start_seed);
+    std::vector<Result> random_starts;
+    random_starts.reserve(RUNS);
+    for (int run = 0; run < RUNS; ++run) {
+        random_starts.push_back(start_solver.randomStartingSolution(start_rng));
+    }
+
+    std::cout << "=== ranking experiment " << instance_name << " ===\n";
+    std::cout << "Comparing the default ranking with node-cost ranking for both move types\n";
+    std::cout << "Runs per method: " << RUNS << '\n';
+
+    std::vector<RankingMethodRun> methods;
+    for (const auto& config : configs) {
+        methods.push_back({config, {}, {}});
+    }
+
+    for (auto& method : methods) {
+        const TSPSolver solver(distances.matrix(), nodes, method.config.candidate_count, method.config.ranking);
+        std::vector<double> run_times;
+        run_times.reserve(RUNS);
+        for (int run = 0; run < RUNS; ++run) {
+            if (run == 0 || (run + 1) % 50 == 0 || run + 1 == RUNS) {
+                std::cout << method.config.id << " iteration " << (run + 1) << '/' << RUNS << '\n';
+            }
+
+            const auto begin = std::chrono::steady_clock::now();
+            const Result result = solver.steepestLocalSearch(
+                random_starts[static_cast<std::size_t>(run)], true);
+            const auto end = std::chrono::steady_clock::now();
+            run_times.push_back(std::chrono::duration<double, std::milli>(end - begin).count());
+
+            if (!isValidRoute(result, node_count, solver.targetCount())) {
+                throw std::runtime_error("invalid route produced by " + method.config.id);
+            }
+            method.space.addSolution(result);
+        }
+        method.time = summarizeTimes(run_times);
+        const Stats stats = method.space.stats();
+        std::cout << method.config.label << " (k=" << method.config.candidate_count << ")"
+                  << " min=" << stats.min << " max=" << stats.max << " avg=" << stats.avg
+                  << " time_avg_ms=" << method.time.average_ms << '\n';
+    }
+
+    const fs::path evaluation_dir = lab_dir / "evaluation";
+    fs::create_directories(evaluation_dir);
+    writeRankingTimes(evaluation_dir / (instance_name + "_ranking_times.csv"), methods);
+    writeRankingStats(evaluation_dir / (instance_name + "_ranking_stats.csv"), methods);
+}
+
 Options parseOptions(int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
@@ -259,9 +379,11 @@ Options parseOptions(int argc, char** argv) {
             options.candidate_counts = {std::stoi(argv[++index])};
         } else if (argument == "--seed" && index + 1 < argc) {
             options.seed = static_cast<unsigned int>(std::stoul(argv[++index]));
+        } else if (argument == "--ranking-experiment") {
+            options.ranking_experiment = true;
         } else if (argument == "--help") {
             std::cout << "Usage: lab04 [--data-dir DIR] [--candidate-counts K1,K2,...] "
-                         "[--candidate-count K] [--seed N] [TSPA] [TSPB]\n";
+                         "[--candidate-count K] [--seed N] [--ranking-experiment] [TSPA] [TSPB]\n";
             std::exit(0);
         } else {
             options.instances.push_back(argument);
@@ -294,7 +416,11 @@ int main(int argc, char** argv) {
         const Options options = parseOptions(argc, argv);
         const fs::path lab_dir = resolveLabDirectory(argv[0]);
         for (const auto& instance : options.instances) {
-            runInstance(instance, options, lab_dir);
+            if (options.ranking_experiment) {
+                runRankingExperiment(instance, options, lab_dir);
+            } else {
+                runInstance(instance, options, lab_dir);
+            }
         }
         return 0;
     } catch (const std::exception& ex) {

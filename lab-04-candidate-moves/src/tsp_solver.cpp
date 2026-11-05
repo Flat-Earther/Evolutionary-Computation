@@ -7,9 +7,10 @@
 #include <utility>
 
 TSPSolver::TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes,
-                     int candidate_count)
+                     int candidate_count, CandidateRanking candidate_ranking)
     : distance_matrix_(distance_matrix),
       nodes_(nodes),
+      candidate_ranking_(candidate_ranking),
       target_count_(std::max(1, static_cast<int>(std::ceil(nodes.size() / 2.0)))) {
     if (nodes_.empty() || distance_matrix_.size() != nodes_.size()) {
         throw std::invalid_argument("invalid instance or distance matrix");
@@ -70,10 +71,13 @@ void TSPSolver::buildCandidateLists(int candidate_count) {
             if (other == vertex) {
                 continue;
             }
-            intra_ranking.emplace_back(distance_matrix_[vertex][other], other);
-            inter_ranking.emplace_back(distance_matrix_[vertex][other]
-                                           + nodes_[vertex].cost + nodes_[other].cost,
-                                       other);
+            const int node_costs = nodes_[vertex].cost + nodes_[other].cost;
+            const int intra_score = candidate_ranking_ == CandidateRanking::DistancePlusNodeCostsForAll
+                                        ? distance_matrix_[vertex][other] + node_costs
+                                        : distance_matrix_[vertex][other];
+            intra_ranking.emplace_back(intra_score, other);
+            const int inter_score = distance_matrix_[vertex][other] + node_costs;
+            inter_ranking.emplace_back(inter_score, other);
         }
 
         auto ranking_order = [](const auto& lhs, const auto& rhs) {

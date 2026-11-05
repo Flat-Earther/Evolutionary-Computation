@@ -1,0 +1,15 @@
+method_name,candidate_count,ranking,average_ms,minimum_ms,maximum_ms
+distance_intra_costs_inter_k1,1,Distance intra + costs inter,3.746090,3.015000,5.007700
+distance_plus_costs_all_k1,1,Distance + costs intra/inter,5.483348,4.054400,8.187400
+distance_intra_costs_inter_k5,5,Distance intra + costs inter,16.349137,13.815700,22.220300
+distance_plus_costs_all_k5,5,Distance + costs intra/inter,20.462455,17.279500,29.791200
+distance_intra_costs_inter_k10,10,Distance intra + costs inter,28.751047,24.274600,39.702100
+distance_plus_costs_all_k10,10,Distance + costs intra/inter,35.539397,30.628000,47.775100
+distance_intra_costs_inter_k15,15,Distance intra + costs inter,40.751072,35.549000,108.946200
+distance_plus_costs_all_k15,15,Distance + costs intra/inter,48.510119,41.531200,62.947100
+distance_intra_costs_inter_k20,20,Distance intra + costs inter,51.110106,43.312400,67.856000
+distance_plus_costs_all_k20,20,Distance + costs intra/inter,60.915222,52.185900,77.415300
+distance_intra_costs_inter_k30,30,Distance intra + costs inter,71.577490,62.405900,124.027400
+distance_plus_costs_all_k30,30,Distance + costs intra/inter,82.129822,70.089900,118.996600
+distance_intra_costs_inter_k50,50,Distance intra + costs inter,109.826882,95.640800,171.844300
+distance_plus_costs_all_k50,50,Distance + costs intra/inter,122.164125,107.873900,145.210100

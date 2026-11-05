@@ -37,6 +37,21 @@ The runtime CSV files use the following format:
 method_name,candidate_count,average_ms,minimum_ms,maximum_ms
 ```
 
+## Additional ranking experiment
+
+The additional experiment compares the current candidate ranking with a variant that also includes node costs when ranking intra-route candidate edges:
+
+1. **Distance intra, node costs inter** - the default policy: intra-route candidates are ordered by distance, while inter-route candidates are ordered by distance plus the costs of both vertices.
+2. **Distance plus node costs intra/inter** - candidates for both move types are ordered by distance plus the costs of both vertices.
+
+Both policies are evaluated for `k = 1, 5, 10, 15, 20, 30, 50`. For each instance, policy, and candidate-list size, the same 200 random starting cycles are used, so the comparison isolates the effect of the ranking rule. The results are written to `TSPA_ranking_stats.csv`, `TSPA_ranking_times.csv`, `TSPB_ranking_stats.csv`, and `TSPB_ranking_times.csv`.
+
+Run this experiment with:
+
+```text
+build/lab04.exe --ranking-experiment --seed 20260404
+```
+
 ## Build and run
 
 From this directory:

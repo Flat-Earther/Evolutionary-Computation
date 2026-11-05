@@ -47,6 +47,13 @@ METHODS = [
     ("steepest_2opt", "Full neighborhood (k = infinity)", 0),
 ]
 
+RANKING_METHODS = [
+    (f"{strategy}_k{candidate_count}", f"k = {candidate_count} - {label}", candidate_count)
+    for candidate_count in (1, 5, 10, 15, 20, 30, 50)
+    for strategy, label in (("distance_intra_costs_inter", "distance intra + costs inter"),
+                            ("distance_plus_costs_all", "distance + costs intra/inter"))
+]
+
 
 def esc(value: object) -> str:
     return html.escape(str(value), quote=True)
@@ -328,6 +335,12 @@ def read_data() -> tuple[dict[str, list[dict[str, str]]], dict[str, list[dict[st
     return stats, times
 
 
+def read_ranking_data() -> tuple[dict[str, list[dict[str, str]]], dict[str, list[dict[str, str]]]]:
+    stats = {instance: read_csv(EVALUATION / f"{instance}_ranking_stats.csv") for instance in ("TSPA", "TSPB")}
+    times = {instance: read_csv(EVALUATION / f"{instance}_ranking_times.csv") for instance in ("TSPA", "TSPB")}
+    return stats, times
+
+
 def fmt(value: str | float | int, places: int = 2) -> str:
     number = float(value)
     if places == 0:
@@ -452,6 +465,70 @@ def comparison_page(number: int, stats: dict[str, list[dict[str, str]]],
             f"TSPB score: {labels[best_score_tspb]} ({fmt(score_by_instance['TSPB'][best_score_tspb]['avg'])}).",
             f"TSPA time: {labels[best_time_tspa]} ({fmt(time_by_instance['TSPA'][best_time_tspa]['average_ms'])} ms).",
             f"TSPB time: {labels[best_time_tspb]} ({fmt(time_by_instance['TSPB'][best_time_tspb]['average_ms'])} ms).",
+        ], 17, MUTED, line_height=34),
+    ])
+    return page_end(parts, number)
+
+
+def additional_experiment_page(number: int,
+                               stats: dict[str, list[dict[str, str]]],
+                               times: dict[str, list[dict[str, str]]]) -> str:
+    parts = page_start("7. Additional experiment", "07 - additional experiment", number)
+    score_by_instance = {
+        instance: {row["method_name"]: row for row in stats[instance]}
+        for instance in ("TSPA", "TSPB")
+    }
+    time_by_instance = {
+        instance: {row["method_name"]: row for row in times[instance]}
+        for instance in ("TSPA", "TSPB")
+    }
+    rows_scores = []
+    rows_times = []
+    for method_id, label, _ in RANKING_METHODS:
+        rows_scores.append([
+            label,
+            f"{fmt(score_by_instance['TSPA'][method_id]['avg'])}({fmt(score_by_instance['TSPA'][method_id]['min'], 0)} - {fmt(score_by_instance['TSPA'][method_id]['max'], 0)})",
+            f"{fmt(score_by_instance['TSPB'][method_id]['avg'])}({fmt(score_by_instance['TSPB'][method_id]['min'], 0)} - {fmt(score_by_instance['TSPB'][method_id]['max'], 0)})",
+        ])
+        rows_times.append([
+            label,
+            f"{fmt(time_by_instance['TSPA'][method_id]['average_ms'])}({fmt(time_by_instance['TSPA'][method_id]['minimum_ms'])} - {fmt(time_by_instance['TSPA'][method_id]['maximum_ms'])}) ms",
+            f"{fmt(time_by_instance['TSPB'][method_id]['average_ms'])}({fmt(time_by_instance['TSPB'][method_id]['minimum_ms'])} - {fmt(time_by_instance['TSPB'][method_id]['maximum_ms'])}) ms",
+        ])
+
+    tspa_score_best = min(range(len(RANKING_METHODS)), key=lambda index: float(rows_scores[index][1].split("(")[0]))
+    tspb_score_best = min(range(len(RANKING_METHODS)), key=lambda index: float(rows_scores[index][2].split("(")[0]))
+    tspa_time_best = min(range(len(RANKING_METHODS)), key=lambda index: float(rows_times[index][1].split("(")[0]))
+    tspb_time_best = min(range(len(RANKING_METHODS)), key=lambda index: float(rows_times[index][2].split("(")[0]))
+
+    parts.append(text(70, 175, "Objective score: average (minimum - maximum); lower values are better.", 20, INK, "700"))
+    table(parts, 70, 200, [380, 360, 360], ["Ranking policy", "TSPA", "TSPB"], rows_scores,
+          row_height=28, font_size=11,
+          highlight_cells={(tspa_score_best, 1): BEST_SCORE, (tspb_score_best, 2): BEST_SCORE},
+          bold_cells={(tspa_score_best, 1), (tspb_score_best, 2)})
+
+    parts.append(text(70, 650, "Runtime: average (minimum - maximum) milliseconds; lower values are better.", 20, INK, "700"))
+    table(parts, 70, 675, [380, 360, 360], ["Ranking policy", "TSPA", "TSPB"], rows_times,
+          row_height=28, font_size=10,
+          highlight_cells={(tspa_time_best, 1): BEST_TIME, (tspb_time_best, 2): BEST_TIME},
+          bold_cells={(tspa_time_best, 1), (tspb_time_best, 2)})
+
+    best_score_tspa = RANKING_METHODS[tspa_score_best][1]
+    best_score_tspb = RANKING_METHODS[tspb_score_best][1]
+    best_time_tspa = RANKING_METHODS[tspa_time_best][1]
+    best_time_tspb = RANKING_METHODS[tspb_time_best][1]
+    parts.extend([
+        rect(70, 1140, 18, 18, BEST_SCORE, radius=4),
+        text(98, 1155, "lowest average objective", 15, MUTED),
+        rect(330, 1140, 18, 18, BEST_TIME, radius=4),
+        text(358, 1155, "lowest average runtime", 15, MUTED),
+        rect(70, 1190, 1100, 315, PALE_TEAL, radius=20),
+        text(108, 1238, "Ranking-policy comparison", 24, INK, "700"),
+        multiline(108, 1290, [
+            f"TSPA best objective: {best_score_tspa} ({fmt(score_by_instance['TSPA'][RANKING_METHODS[tspa_score_best][0]]['avg'])}).",
+            f"TSPB best objective: {best_score_tspb} ({fmt(score_by_instance['TSPB'][RANKING_METHODS[tspb_score_best][0]]['avg'])}).",
+            f"TSPA fastest average: {best_time_tspa} ({fmt(time_by_instance['TSPA'][RANKING_METHODS[tspa_time_best][0]]['average_ms'])} ms).",
+            f"TSPB fastest average: {best_time_tspb} ({fmt(time_by_instance['TSPB'][RANKING_METHODS[tspb_time_best][0]]['average_ms'])} ms).",
         ], 17, MUTED, line_height=34),
     ])
     return page_end(parts, number)
@@ -607,7 +684,7 @@ def large_visual_page(number: int, instance: str, subset: list[tuple[str, str, i
     border = "#e4a06f" if worst else "#8ac5b6"
     labels = {method_id: label for method_id, label, _ in METHODS}
     stats_by_id = {row["method_name"]: row for row in stats[instance]}
-    parts = page_start(f"7. Large {mode.lower()} visualizations - {instance}",
+    parts = page_start(f"8. Large {mode.lower()} visualizations - {instance}",
                        f"appendix - {mode.lower()} solutions", number)
     for y, (method_id, _, _) in zip([155, 915], subset):
         row = stats_by_id[method_id]
@@ -630,6 +707,7 @@ def large_visual_page(number: int, instance: str, subset: list[tuple[str, str, i
 
 def main() -> None:
     stats, times = read_data()
+    ranking_stats, ranking_times = read_ranking_data()
     if BUILD.exists():
         shutil.rmtree(BUILD)
     BUILD.mkdir()
@@ -648,6 +726,7 @@ def main() -> None:
         for subset in subsets:
             pages.append(visual_page(len(pages) + 1, instance, subset, stats, times, True))
     pages.append(conclusions_page(len(pages) + 1, stats, times))
+    pages.append(additional_experiment_page(len(pages) + 1, ranking_stats, ranking_times))
     pages.append(dark_divider_page(len(pages) + 1))
     for instance in ("TSPA", "TSPB"):
         for subset in pair_subsets:

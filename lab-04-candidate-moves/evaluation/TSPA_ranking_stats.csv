@@ -1,0 +1,15 @@
+method_name,candidate_count,ranking,min,max,avg,sd
+distance_intra_costs_inter_k1,1,Distance intra + costs inter,108540.00,138085.00,119836.08,5692.61
+distance_plus_costs_all_k1,1,Distance + costs intra/inter,100511.00,129657.00,112821.44,5274.04
+distance_intra_costs_inter_k5,5,Distance intra + costs inter,74889.00,84157.00,79905.04,1644.94
+distance_plus_costs_all_k5,5,Distance + costs intra/inter,75185.00,82014.00,78271.01,1417.50
+distance_intra_costs_inter_k10,10,Distance intra + costs inter,75168.00,81693.00,77589.12,1133.32
+distance_plus_costs_all_k10,10,Distance + costs intra/inter,75153.00,80930.00,77517.70,1069.85
+distance_intra_costs_inter_k15,15,Distance intra + costs inter,74831.00,81611.00,77384.93,1158.82
+distance_plus_costs_all_k15,15,Distance + costs intra/inter,74577.00,81333.00,77330.48,1051.97
+distance_intra_costs_inter_k20,20,Distance intra + costs inter,74434.00,80540.00,77336.46,1078.74
+distance_plus_costs_all_k20,20,Distance + costs intra/inter,75005.00,81952.00,77327.07,1096.82
+distance_intra_costs_inter_k30,30,Distance intra + costs inter,74935.00,80342.00,77355.34,1066.30
+distance_plus_costs_all_k30,30,Distance + costs intra/inter,74935.00,80341.00,77331.75,1046.79
+distance_intra_costs_inter_k50,50,Distance intra + costs inter,74935.00,80342.00,77353.41,1084.32
+distance_plus_costs_all_k50,50,Distance + costs intra/inter,74935.00,80341.00,77349.74,1071.80
