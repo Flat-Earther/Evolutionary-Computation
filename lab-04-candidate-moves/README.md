@@ -22,6 +22,16 @@ Candidate moves are generated directly from the candidate lists. The candidate m
 
 All move evaluations use direct objective deltas. The implementation does not rebuild neighboring routes or recompute the complete objective for every move. After each run, the final objective is recomputed and checked against the accumulated deltas.
 
+## Implementation and performance
+
+The local search is implemented for speed without changing what it computes: every iteration applies the move with the lowest delta, and ties are broken by the same fixed move order as in the first, straightforward version of this lab (which materialised every neighbourhood as a list of moves). Every run therefore ends in exactly the same local optimum as before, only faster.
+
+* **No allocation in the search loop.** Moves are evaluated on the fly; the distance matrix is one contiguous array; the route is stored with sentinel copies of its ends, so neighbours are read without modulo arithmetic; route-edge lengths and node positions are cached and updated incrementally after each move.
+* **Full neighbourhood.** Each row of 2-opt moves and each position's exchange scan is reduced to its minimum without branches (the exchange scan runs over all nodes with a penalty for selected ones, which the compiler vectorises); the arg-min is located only when a row beats the best move so far.
+* **Candidate moves.** Candidate lists are stored in compressed form with precomputed delta parts. A per-list bitmask, updated through mirror entries when a node enters or leaves the solution, lets 2-opt scans visit only selected candidates and exchange scans only unselected ones. Every selected node is visited once: its 2-opt list yields both moves that introduce a candidate edge, and each pair of selected nodes is evaluated once, from the endpoint with the smaller position. Exchange lists are sorted by `d(u, v) + cost(v)`, so a scan stops at the first candidate that can no longer match the best move (exact, because distances are non-negative). Tie-breaking uses each move's rank in the original scan order, so the visiting order is free.
+
+Equivalence with the straightforward implementation was verified run by run (identical final routes and objectives) on TSPA/TSPB for the full neighbourhood and every tested candidate-list size and ranking policy, and on many random instances including tiny and odd-sized ones.
+
 ## Evaluation and timing
 
 Each method and each candidate-list size is run 200 times for TSPA and TSPB. The same random starting cycles are used for all methods of a given instance. The evaluation stores:
@@ -61,6 +71,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 build/lab04.exe --seed 20260404
 ```
+
+Running times are part of the results, so the build must be optimised. `CMakeLists.txt` defaults to `Release` (`-O3`) when no build type is given; building without optimisation makes the search more than ten times slower. For GCC/Clang the instruction-set level is set by `LAB04_ARCH` (default `x86-64-v2`, supported by practically every x86-64 CPU of the last decade). On a CPU with AVX2, `-DLAB04_ARCH=x86-64-v3` makes the full-neighbourhood baseline somewhat faster; `-DLAB04_ARCH=` keeps the compiler default.
 
 The executable accepts `TSPA` or `TSPB` to run one instance, `--data-dir DIR` to override the data location, and `--candidate-counts K1,K2,...` to select the candidate-list sizes. For example:
 

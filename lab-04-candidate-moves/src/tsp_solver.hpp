@@ -1,12 +1,13 @@
 #pragma once
 
-#include "node.hpp"
+#include "distance_matrix.hpp"
 
+#include <cstdint>
 #include <random>
 #include <vector>
 
 struct Result {
-    std::vector<int> route;
+    std::vector<int> route;  // closed cycle: the first node is repeated at the end
     int total_cost = 0;
 };
 
@@ -15,10 +16,17 @@ enum class CandidateRanking {
     DistancePlusNodeCostsForAll,
 };
 
+// Steepest local search in the neighbourhood made of 2-opt moves (intra-route) and
+// selected/unselected node exchanges (inter-route), either complete or restricted to
+// candidate moves. Only the distance matrix and the node costs are accessed.
+//
+// Every iteration applies the move with the lowest delta; ties are broken by a fixed move
+// order (the scan order of a straightforward implementation that materialises the
+// neighbourhood), so a run is fully determined by its starting solution and gives exactly
+// the same local optimum as that straightforward implementation, only faster.
 class TSPSolver {
 public:
-    TSPSolver(const std::vector<std::vector<int>>& distance_matrix, const std::vector<Node>& nodes,
-              int candidate_count = 10,
+    TSPSolver(const DistanceMatrix& distances, std::vector<int> node_costs, int candidate_count = 10,
               CandidateRanking candidate_ranking = CandidateRanking::DistanceIntraPlusCostsInter);
 
     Result randomStartingSolution(std::mt19937& rng) const;
@@ -28,29 +36,53 @@ public:
 
 private:
     enum class MoveType {
-        TwoOpt,
-        InterNodeExchange,
+        None,
+        TwoOpt,    // reverse the route segment [first, second]
+        Exchange,  // replace the node at position first with the unselected node second
     };
 
     struct Move {
-        MoveType type;
-        int first;
-        int second;
+        int delta = 0;
+        MoveType type = MoveType::None;
+        int first = 0;
+        int second = 0;
     };
 
-    int objective(const std::vector<int>& route) const;
+    // Entry of a candidate list owned by node u. The weight is the part of a move delta
+    // that depends only on u and the candidate, so it is computed once per instance.
+    struct Candidate {
+        int node;
+        int weight;  // intra lists: d(u, node); inter lists: d(u, node) + cost(node)
+    };
+
+    // Symmetric candidate lists in compressed sparse row form: the candidates of node u are
+    // entries [offsets[u], offsets[u + 1]), sorted by node index or by weight. rank[e] is the
+    // index of entry e among u's candidates ordered by node index (used to break ties).
+    // During the search every list is paired with a bitmask (one bit per entry, words
+    // [words[u], words[u + 1])). Because the lists are symmetric, the entry (u -> v) has a
+    // mirror entry (v -> u); mirror_bit holds the bit index of that mirror entry, so when the
+    // selection status of u changes, the bits that describe u in the lists of all its
+    // candidates can be flipped directly.
+    struct CandidateLists {
+        std::vector<int> offsets;
+        std::vector<Candidate> entries;
+        std::vector<int> rank;
+        std::vector<int> words;
+        std::vector<int> mirror_bit;
+    };
+
+    class Search;
+
+    int objective(const std::vector<int>& open_route) const;
     Result makeResult(const std::vector<int>& open_route) const;
+    void buildCandidateLists(int candidate_count, CandidateRanking candidate_ranking);
+    CandidateLists packCandidateLists(const std::vector<char>& is_candidate, bool add_node_cost,
+                                      bool sort_by_weight) const;
 
-    void buildCandidateLists(int candidate_count);
-    std::vector<Move> fullNeighborhood(const std::vector<int>& route) const;
-    std::vector<Move> candidateNeighborhood(const std::vector<int>& route) const;
-    int moveDelta(const std::vector<int>& route, const Move& move) const;
-    void applyMove(std::vector<int>& route, const Move& move) const;
-
-    const std::vector<std::vector<int>>& distance_matrix_;
-    const std::vector<Node>& nodes_;
-    CandidateRanking candidate_ranking_;
-    std::vector<std::vector<int>> intra_candidates_;
-    std::vector<std::vector<int>> inter_candidates_;
+    const DistanceMatrix& distances_;
+    std::vector<int> costs_;
+    int node_count_;
     int target_count_;
+    CandidateLists intra_;  // 2-opt candidates by node index; only selected entries are scanned
+    CandidateLists inter_;  // exchange candidates by weight; only unselected entries are scanned
 };

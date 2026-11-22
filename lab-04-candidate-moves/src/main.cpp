@@ -211,6 +211,7 @@ void runInstance(const std::string& instance_name, const Options& options, const
     const std::string data_path = findDataFile(instance_name, options.data_dir);
     const std::vector<Node> nodes = loadInstance(data_path);
     const DistanceMatrix distances(nodes);
+    const std::vector<int> costs = nodeCosts(nodes);
     const int node_count = static_cast<int>(nodes.size());
     for (int candidate_count : options.candidate_counts) {
         if (candidate_count <= 0 || candidate_count >= node_count) {
@@ -218,7 +219,7 @@ void runInstance(const std::string& instance_name, const Options& options, const
         }
     }
     const std::vector<MethodConfig> method_configs = makeMethodConfigs(options.candidate_counts);
-    const TSPSolver start_solver(distances.matrix(), nodes, 1);
+    const TSPSolver start_solver(distances, costs, 1);
 
     std::cout << "=== " << instance_name << " ===\n";
     std::cout << "Loaded " << node_count << " nodes from " << data_path << '\n';
@@ -248,7 +249,7 @@ void runInstance(const std::string& instance_name, const Options& options, const
     }
 
     for (auto& method : methods) {
-        const TSPSolver solver(distances.matrix(), nodes,
+        const TSPSolver solver(distances, costs,
                                method.config.use_candidate_moves ? method.config.candidate_count : 1);
         std::vector<double> run_times;
         run_times.reserve(RUNS);
@@ -307,6 +308,7 @@ void runRankingExperiment(const std::string& instance_name, const Options& optio
     const std::string data_path = findDataFile(instance_name, options.data_dir);
     const std::vector<Node> nodes = loadInstance(data_path);
     const DistanceMatrix distances(nodes);
+    const std::vector<int> costs = nodeCosts(nodes);
     const int node_count = static_cast<int>(nodes.size());
     for (int candidate_count : options.candidate_counts) {
         if (candidate_count <= 0 || candidate_count >= node_count) {
@@ -315,7 +317,7 @@ void runRankingExperiment(const std::string& instance_name, const Options& optio
     }
 
     const std::vector<RankingMethodConfig> configs = makeRankingMethodConfigs(options.candidate_counts);
-    const TSPSolver start_solver(distances.matrix(), nodes, 1);
+    const TSPSolver start_solver(distances, costs, 1);
     const unsigned int start_seed = options.seed
                                     ^ static_cast<unsigned int>(instance_name == "TSPB" ? 0xB00B : 0xA11A);
     std::mt19937 start_rng(start_seed);
@@ -335,7 +337,7 @@ void runRankingExperiment(const std::string& instance_name, const Options& optio
     }
 
     for (auto& method : methods) {
-        const TSPSolver solver(distances.matrix(), nodes, method.config.candidate_count, method.config.ranking);
+        const TSPSolver solver(distances, costs, method.config.candidate_count, method.config.ranking);
         std::vector<double> run_times;
         run_times.reserve(RUNS);
         for (int run = 0; run < RUNS; ++run) {

@@ -56,3 +56,12 @@ std::string findDataFile(const std::string& instance_name, const std::string& da
     }
     throw std::runtime_error("could not find instance file for " + instance_name);
 }
+
+std::vector<int> nodeCosts(const std::vector<Node>& nodes) {
+    std::vector<int> costs;
+    costs.reserve(nodes.size());
+    for (const Node& node : nodes) {
+        costs.push_back(node.cost);
+    }
+    return costs;
+}
