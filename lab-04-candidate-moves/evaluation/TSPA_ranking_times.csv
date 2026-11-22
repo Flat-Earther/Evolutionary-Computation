@@ -1,15 +1,65 @@
-method_name,candidate_count,ranking,average_ms,minimum_ms,maximum_ms
-distance_intra_costs_inter_k1,1,Distance intra + costs inter,3.690748,2.818900,6.085500
-distance_plus_costs_all_k1,1,Distance + costs intra/inter,6.402125,4.935500,10.681900
-distance_intra_costs_inter_k5,5,Distance intra + costs inter,17.565859,14.552400,24.054500
-distance_plus_costs_all_k5,5,Distance + costs intra/inter,24.285292,19.724000,33.111700
-distance_intra_costs_inter_k10,10,Distance intra + costs inter,31.265103,26.754000,40.901200
-distance_plus_costs_all_k10,10,Distance + costs intra/inter,42.077912,34.999900,57.155200
-distance_intra_costs_inter_k15,15,Distance intra + costs inter,44.473442,34.835700,122.421600
-distance_plus_costs_all_k15,15,Distance + costs intra/inter,58.876841,50.230600,75.213700
-distance_intra_costs_inter_k20,20,Distance intra + costs inter,56.892002,48.661800,74.620400
-distance_plus_costs_all_k20,20,Distance + costs intra/inter,74.896265,63.310000,96.548300
-distance_intra_costs_inter_k30,30,Distance intra + costs inter,81.328821,68.713300,130.757100
-distance_plus_costs_all_k30,30,Distance + costs intra/inter,101.875763,87.580900,126.014900
-distance_intra_costs_inter_k50,50,Distance intra + costs inter,123.065938,105.564700,179.487100
-distance_plus_costs_all_k50,50,Distance + costs intra/inter,148.220437,127.821900,218.157900
+intra,inter,candidate_count,average_ms,minimum_ms,maximum_ms,candidate_list_ms
+none,none,0,0.826001,0.649800,1.527500,0.000000
+distance,distance,1,0.131892,0.102200,0.591000,0.168200
+distance,distance,5,0.360776,0.283100,0.735000,0.297200
+distance,distance,10,0.518044,0.411600,0.992300,0.481800
+distance,distance,15,0.654950,0.514600,1.188700,0.743200
+distance,distance,20,0.776754,0.632100,1.594600,0.789700
+distance,distance,30,1.043071,0.819900,2.498400,0.920900
+distance,distance,50,1.467972,1.129600,2.370500,1.148000
+distance,cost,1,0.073893,0.047000,0.201500,0.165900
+distance,cost,5,0.305653,0.229500,1.088000,0.329000
+distance,cost,10,0.459900,0.357400,1.473100,0.514800
+distance,cost,15,0.598975,0.484200,1.280800,0.614100
+distance,cost,20,0.732874,0.561800,1.368600,0.700400
+distance,cost,30,0.975981,0.736700,1.554300,0.887300
+distance,cost,50,1.455437,1.182000,2.610400,1.111500
+distance,distance_plus_cost,1,0.153051,0.118300,0.303800,0.176000
+distance,distance_plus_cost,5,0.402357,0.316600,0.830200,0.352700
+distance,distance_plus_cost,10,0.538858,0.438300,1.305700,0.596100
+distance,distance_plus_cost,15,0.652423,0.528600,1.665900,0.815000
+distance,distance_plus_cost,20,0.785051,0.635800,1.636600,0.864400
+distance,distance_plus_cost,30,1.032181,0.823900,1.932300,1.023100
+distance,distance_plus_cost,50,1.477331,1.219200,2.599900,1.289400
+cost,distance,1,0.147771,0.067400,0.445900,0.169400
+cost,distance,5,0.536985,0.380400,0.929300,0.308600
+cost,distance,10,0.925642,0.707800,1.594400,0.474600
+cost,distance,15,1.235855,0.990900,1.957900,0.552200
+cost,distance,20,1.559511,1.234800,2.460500,0.598800
+cost,distance,30,2.042513,1.639500,3.006100,0.765100
+cost,distance,50,2.708371,2.246100,4.321400,0.969700
+cost,cost,1,0.132005,0.086300,0.242700,0.154900
+cost,cost,5,0.470139,0.342600,1.098200,0.284500
+cost,cost,10,0.929817,0.699300,1.589800,0.409500
+cost,cost,15,1.316473,1.032900,2.493600,0.395500
+cost,cost,20,1.606001,1.233900,3.004200,0.429400
+cost,cost,30,2.038918,1.669700,3.194400,0.663400
+cost,cost,50,2.745994,2.267300,4.898700,1.007900
+cost,distance_plus_cost,1,0.181280,0.132600,0.442200,0.264200
+cost,distance_plus_cost,5,0.557284,0.428800,1.036200,0.340600
+cost,distance_plus_cost,10,0.949734,0.736500,1.498700,0.593300
+cost,distance_plus_cost,15,1.276701,0.997300,2.226700,0.683300
+cost,distance_plus_cost,20,1.572154,1.216200,2.423300,0.676100
+cost,distance_plus_cost,30,2.051669,1.666100,2.896000,0.885000
+cost,distance_plus_cost,50,2.737423,2.177500,4.126900,1.154100
+distance_plus_cost,distance,1,0.212984,0.146600,0.608500,0.181200
+distance_plus_cost,distance,5,0.553504,0.430700,1.323300,0.344900
+distance_plus_cost,distance,10,0.810237,0.632400,1.544900,0.582700
+distance_plus_cost,distance,15,1.050205,0.820000,2.107700,0.797500
+distance_plus_cost,distance,20,1.217076,1.008300,2.169100,0.850100
+distance_plus_cost,distance,30,1.552807,1.256800,2.517500,0.979200
+distance_plus_cost,distance,50,2.112813,1.716400,3.765700,1.236500
+distance_plus_cost,cost,1,0.164237,0.080200,0.365000,0.183400
+distance_plus_cost,cost,5,0.476813,0.314100,1.623700,0.334100
+distance_plus_cost,cost,10,0.731504,0.552100,1.318600,0.526500
+distance_plus_cost,cost,15,0.964647,0.718900,1.633600,0.650000
+distance_plus_cost,cost,20,1.174047,0.916400,2.086000,0.685600
+distance_plus_cost,cost,30,1.539758,1.253300,2.892100,0.910900
+distance_plus_cost,cost,50,2.116626,1.737600,3.217100,1.182700
+distance_plus_cost,distance_plus_cost,1,0.249495,0.190800,0.768300,0.182200
+distance_plus_cost,distance_plus_cost,5,0.574068,0.462700,1.237100,0.333800
+distance_plus_cost,distance_plus_cost,10,0.819802,0.683600,1.309000,0.527800
+distance_plus_cost,distance_plus_cost,15,1.050282,0.836400,1.828300,0.836200
+distance_plus_cost,distance_plus_cost,20,1.245691,0.991900,2.085800,0.906900
+distance_plus_cost,distance_plus_cost,30,1.554277,1.283400,2.440800,1.070300
+distance_plus_cost,distance_plus_cost,50,2.093467,1.748100,3.477500,1.297600

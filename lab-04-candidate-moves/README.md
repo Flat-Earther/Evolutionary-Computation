@@ -36,27 +36,28 @@ Equivalence with the straightforward implementation (with the same neighbourhood
 
 ## Evaluation and timing
 
-Each method and each candidate-list size is run 200 times for TSPA and TSPB. The same random starting cycles are used for all methods of a given instance. The evaluation stores:
+Each method and each candidate-list size is run 200 times for TSPA and TSPB. The same random starting cycles are used for all methods of a given instance. The runs of all methods are interleaved (for each starting cycle, every method once), so that changes of the processor clock during the experiment affect all methods alike. Only the local search itself is timed; building the candidate lists is measured separately (median of 25 constructions) because the lists depend only on the instance, the list size and the definition of "nearest". The evaluation stores:
 
 * objective minimum, maximum, average, and standard deviation;
 * best and worst closed routes;
 * best and worst SVG visualizations;
-* per-run runtime average, minimum, and maximum in milliseconds.
+* per-run runtime average, minimum, and maximum in milliseconds, and the candidate-list construction time.
 
-The runtime CSV files use the following format:
+The runtime CSV files use the following format (`candidate_list_ms` is 0 for the full neighbourhood):
 
 ```text
-method_name,candidate_count,average_ms,minimum_ms,maximum_ms
+method_name,candidate_count,average_ms,minimum_ms,maximum_ms,candidate_list_ms
 ```
 
-## Additional ranking experiment
+## Additional experiment: definitions of "nearest"
 
-The additional experiment compares the current candidate ranking with a variant that also includes node costs when ranking intra-route candidate edges:
+Candidate edges of 2-opt moves (intra) and of exchanges (inter) are chosen independently, each by one of three rankings of the other vertices `v` of a vertex `u`:
 
-1. **Distance intra, node costs inter** - the default policy: intra-route candidates are ordered by distance, while inter-route candidates are ordered by distance plus the costs of both vertices.
-2. **Distance plus node costs intra/inter** - candidates for both move types are ordered by distance plus the costs of both vertices.
+1. **distance** - `d(u, v)`;
+2. **cost** - `c(v)`;
+3. **distance + cost** - `d(u, v) + c(v)`.
 
-Both policies are evaluated for `k = 1, 5, 10, 15, 20, 30, 50`. For each instance, policy, and candidate-list size, the same 200 random starting cycles are used, so the comparison isolates the effect of the ranking rule. The results are written to `TSPA_ranking_stats.csv`, `TSPA_ranking_times.csv`, `TSPB_ranking_stats.csv`, and `TSPB_ranking_times.csv`.
+(The cost of `u` itself would add the same amount to every score, so it does not change the ranking.) All 3 x 3 combinations are evaluated for `k = 1, 5, 10, 15, 20, 30, 50`, together with the full neighbourhood, in one interleaved session per instance; the definition proposed in the assignment (distance for intra, distance + cost for inter) is the one used by the main experiment. The results are written to `{TSPA,TSPB}_ranking_stats.csv` (`intra,inter,candidate_count,min,max,avg,sd`), `{TSPA,TSPB}_ranking_times.csv` (`intra,inter,candidate_count,average_ms,minimum_ms,maximum_ms,candidate_list_ms`) and `{TSPA,TSPB}_ranking_best.csv` (best route of every configuration); the full neighbourhood appears as `none,none,0`.
 
 Run this experiment with:
 
@@ -90,7 +91,13 @@ Evaluation artifacts are written to:
 lab-04-candidate-moves/evaluation/
 ```
 
-The generated report is available at:
+The report is generated from the evaluation files with:
+
+```text
+python generate_report.py
+```
+
+It builds the report as HTML (`.report-build/report.html`) and prints it to `report.pdf` with a headless Chromium-based browser - Microsoft Edge or Google Chrome, or the one named by the `REPORT_BROWSER` environment variable; `--html-only` skips the PDF. It also checks every reported best solution with the data and formulas of `problem-description/data/Solution checker.xlsx`. The generated report is available at:
 
 ```text
 lab-04-candidate-moves/report.pdf

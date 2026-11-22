@@ -1,6 +1,7 @@
 #include "tsp_solver.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <numeric>
@@ -467,7 +468,7 @@ void TSPSolver::Search::apply(const Move& move) {
 }
 
 TSPSolver::TSPSolver(const DistanceMatrix& distances, std::vector<int> node_costs, int candidate_count,
-                     CandidateRanking candidate_ranking)
+                     CandidateDefinition candidate_definition)
     : distances_(distances),
       costs_(std::move(node_costs)),
       node_count_(static_cast<int>(costs_.size())),
@@ -493,7 +494,9 @@ TSPSolver::TSPSolver(const DistanceMatrix& distances, std::vector<int> node_cost
             }
         }
     }
-    buildCandidateLists(candidate_count, candidate_ranking);
+    const auto started = std::chrono::steady_clock::now();
+    buildCandidateLists(candidate_count, candidate_definition);
+    candidate_list_ms_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 }
 
 int TSPSolver::objective(const std::vector<int>& route) const {
@@ -522,45 +525,47 @@ Result TSPSolver::randomStartingSolution(std::mt19937& rng) const {
     return makeResult(route);
 }
 
-// For every vertex the `candidate_count` best-ranked other vertices become candidates; an
-// edge chosen by either endpoint is a candidate edge for both (the lists are symmetric).
-// Intra-route (2-opt) candidates are ranked by edge length, or by length plus both node
-// costs for CandidateRanking::DistancePlusNodeCostsForAll; inter-route (exchange)
-// candidates are always ranked by length plus both node costs. Ties go to the smaller index.
-void TSPSolver::buildCandidateLists(int candidate_count, CandidateRanking candidate_ranking) {
+// For every vertex u the `candidate_count` best-ranked other vertices become its candidates;
+// an edge chosen by either endpoint is a candidate edge for both (the lists are symmetric).
+// 2-opt and exchange candidates are ranked separately, each by its NearestMetric; ties go
+// to the smaller vertex index.
+void TSPSolver::buildCandidateLists(int candidate_count, CandidateDefinition candidate_definition) {
     const int n = node_count_;
     const int limit = std::min(candidate_count, n - 1);
     std::vector<char> intra_edge(static_cast<std::size_t>(n) * static_cast<std::size_t>(n), 0);
     std::vector<char> inter_edge(intra_edge.size(), 0);
-    std::vector<std::pair<int, int>> intra_ranking;  // (score, node)
-    std::vector<std::pair<int, int>> inter_ranking;
-    intra_ranking.reserve(static_cast<std::size_t>(n));
-    inter_ranking.reserve(static_cast<std::size_t>(n));
+    // key = score * 2^32 + vertex: one integer comparison orders by score, then by index.
+    std::vector<std::uint64_t> keys(static_cast<std::size_t>(n - 1));
 
-    for (int vertex = 0; vertex < n; ++vertex) {
-        intra_ranking.clear();
-        inter_ranking.clear();
+    const auto mark_nearest = [&](NearestMetric metric, int vertex, std::vector<char>& is_candidate) {
+        const int* from = distances_.row(vertex);
+        const int* cost = costs_.data();
+        std::size_t count = 0;
         for (int other = 0; other < n; ++other) {
             if (other == vertex) {
                 continue;
             }
-            const int length = distances_(vertex, other);
-            const int node_costs = costs_[static_cast<std::size_t>(vertex)] + costs_[static_cast<std::size_t>(other)];
-            const int intra_score =
-                candidate_ranking == CandidateRanking::DistancePlusNodeCostsForAll ? length + node_costs : length;
-            intra_ranking.emplace_back(intra_score, other);
-            inter_ranking.emplace_back(length + node_costs, other);
+            const int score = metric == NearestMetric::Distance ? from[other]
+                              : metric == NearestMetric::Cost   ? cost[other]
+                                                                : from[other] + cost[other];
+            keys[count++] = (static_cast<std::uint64_t>(score) << 32) | static_cast<std::uint32_t>(other);
         }
-        std::partial_sort(intra_ranking.begin(), intra_ranking.begin() + limit, intra_ranking.end());
-        std::partial_sort(inter_ranking.begin(), inter_ranking.begin() + limit, inter_ranking.end());
+        // Only the set of the `limit` smallest keys matters. A bounded heap (partial_sort) is the
+        // cheapest selection for short lists, linear-time selection (nth_element) for long ones.
+        if (static_cast<std::size_t>(limit) * 16 <= keys.size()) {
+            std::partial_sort(keys.begin(), keys.begin() + limit, keys.end());
+        } else {
+            std::nth_element(keys.begin(), keys.begin() + (limit - 1), keys.end());
+        }
         for (int index = 0; index < limit; ++index) {
-            const int intra_neighbor = intra_ranking[static_cast<std::size_t>(index)].second;
-            intra_edge[static_cast<std::size_t>(vertex) * n + intra_neighbor] = 1;
-            intra_edge[static_cast<std::size_t>(intra_neighbor) * n + vertex] = 1;
-            const int inter_neighbor = inter_ranking[static_cast<std::size_t>(index)].second;
-            inter_edge[static_cast<std::size_t>(vertex) * n + inter_neighbor] = 1;
-            inter_edge[static_cast<std::size_t>(inter_neighbor) * n + vertex] = 1;
+            const int neighbor = static_cast<int>(keys[static_cast<std::size_t>(index)] & 0xffffffffu);
+            is_candidate[static_cast<std::size_t>(vertex) * n + neighbor] = 1;
+            is_candidate[static_cast<std::size_t>(neighbor) * n + vertex] = 1;
         }
+    };
+    for (int vertex = 0; vertex < n; ++vertex) {
+        mark_nearest(candidate_definition.intra, vertex, intra_edge);
+        mark_nearest(candidate_definition.inter, vertex, inter_edge);
     }
 
     intra_ = packCandidateLists(intra_edge, false, false);
@@ -573,23 +578,31 @@ TSPSolver::CandidateLists TSPSolver::packCandidateLists(const std::vector<char>&
     CandidateLists lists;
     lists.offsets.assign(static_cast<std::size_t>(n) + 1, 0);
     lists.words.assign(static_cast<std::size_t>(n) + 1, 0);
-    std::vector<std::pair<Candidate, int>> row;  // (entry, rank by node index)
+    // index_in_list[u * n + v]: position of candidate v in the (final) list of u.
+    std::vector<int> index_in_list(static_cast<std::size_t>(n) * static_cast<std::size_t>(n), -1);
+    std::vector<int> rank_of(static_cast<std::size_t>(n), 0);  // position among u's candidates by node index
+    std::vector<std::uint64_t> row;                             // key = weight * 2^32 + node
+    row.reserve(static_cast<std::size_t>(n));
     for (int vertex = 0; vertex < n; ++vertex) {
+        const int* from = distances_.row(vertex);
+        const char* marked = is_candidate.data() + static_cast<std::size_t>(vertex) * n;
         row.clear();
         for (int other = 0; other < n; ++other) {
-            if (is_candidate[static_cast<std::size_t>(vertex) * n + other]) {
-                const int weight = distances_(vertex, other) + (add_node_cost ? costs_[static_cast<std::size_t>(other)] : 0);
-                row.push_back({{other, weight}, static_cast<int>(row.size())});
+            if (marked[other]) {
+                const int weight = from[other] + (add_node_cost ? costs_[static_cast<std::size_t>(other)] : 0);
+                rank_of[static_cast<std::size_t>(other)] = static_cast<int>(row.size());
+                row.push_back((static_cast<std::uint64_t>(weight) << 32) | static_cast<std::uint32_t>(other));
             }
         }
-        if (sort_by_weight) {
-            std::stable_sort(row.begin(), row.end(), [](const auto& lhs, const auto& rhs) {
-                return lhs.first.weight < rhs.first.weight;
-            });
+        if (sort_by_weight) {  // by weight, equal weights in node order
+            std::sort(row.begin(), row.end());
         }
-        for (const auto& [entry, rank] : row) {
-            lists.entries.push_back(entry);
-            lists.rank.push_back(rank);
+        for (const std::uint64_t key : row) {
+            const int node = static_cast<int>(key & 0xffffffffu);
+            index_in_list[static_cast<std::size_t>(vertex) * n + node] =
+                static_cast<int>(lists.entries.size()) - lists.offsets[static_cast<std::size_t>(vertex)];
+            lists.entries.push_back({node, static_cast<int>(key >> 32)});
+            lists.rank.push_back(rank_of[static_cast<std::size_t>(node)]);
         }
         const int size = static_cast<int>(row.size());
         lists.offsets[static_cast<std::size_t>(vertex) + 1] = static_cast<int>(lists.entries.size());
@@ -601,14 +614,11 @@ TSPSolver::CandidateLists TSPSolver::packCandidateLists(const std::vector<char>&
         for (int entry = lists.offsets[static_cast<std::size_t>(vertex)]; entry < lists.offsets[static_cast<std::size_t>(vertex) + 1];
              ++entry) {
             const int other = lists.entries[static_cast<std::size_t>(entry)].node;
-            const auto first = lists.entries.begin() + lists.offsets[static_cast<std::size_t>(other)];
-            const auto last = lists.entries.begin() + lists.offsets[static_cast<std::size_t>(other) + 1];
-            const auto mirror = std::find_if(first, last, [vertex](const Candidate& candidate) { return candidate.node == vertex; });
-            if (mirror == last) {
+            const int mirror = index_in_list[static_cast<std::size_t>(other) * n + vertex];
+            if (mirror < 0) {
                 throw std::logic_error("candidate lists must be symmetric");
             }
-            lists.mirror_bit[static_cast<std::size_t>(entry)] =
-                lists.words[static_cast<std::size_t>(other)] * 64 + static_cast<int>(mirror - first);
+            lists.mirror_bit[static_cast<std::size_t>(entry)] = lists.words[static_cast<std::size_t>(other)] * 64 + mirror;
         }
     }
     return lists;

@@ -1,15 +1,65 @@
-method_name,candidate_count,ranking,min,max,avg,sd
-distance_intra_costs_inter_k1,1,Distance intra + costs inter,72055.00,90620.00,81385.45,3859.24
-distance_plus_costs_all_k1,1,Distance + costs intra/inter,68614.00,87565.00,77688.01,3553.26
-distance_intra_costs_inter_k5,5,Distance intra + costs inter,52515.00,58105.00,54893.31,1137.68
-distance_plus_costs_all_k5,5,Distance + costs intra/inter,51687.00,56293.00,53743.36,966.01
-distance_intra_costs_inter_k10,10,Distance intra + costs inter,51374.00,56520.00,53573.29,947.17
-distance_plus_costs_all_k10,10,Distance + costs intra/inter,51236.00,55791.00,53432.75,896.93
-distance_intra_costs_inter_k15,15,Distance intra + costs inter,51171.00,56408.00,53472.66,934.73
-distance_plus_costs_all_k15,15,Distance + costs intra/inter,51371.00,55822.00,53548.49,942.71
-distance_intra_costs_inter_k20,20,Distance intra + costs inter,51371.00,56469.00,53461.22,979.26
-distance_plus_costs_all_k20,20,Distance + costs intra/inter,51385.00,56316.00,53492.50,944.64
-distance_intra_costs_inter_k30,30,Distance intra + costs inter,51385.00,56469.00,53515.31,918.21
-distance_plus_costs_all_k30,30,Distance + costs intra/inter,51385.00,56469.00,53517.09,922.94
-distance_intra_costs_inter_k50,50,Distance intra + costs inter,51385.00,56469.00,53506.79,928.69
-distance_plus_costs_all_k50,50,Distance + costs intra/inter,51385.00,56469.00,53502.84,933.22
+intra,inter,candidate_count,min,max,avg,sd
+none,none,0,50492.00,55799.00,52663.73,899.66
+distance,distance,1,79102.00,100436.00,87616.73,3748.83
+distance,distance,5,51622.00,59855.00,54877.43,1389.87
+distance,distance,10,50126.00,56010.00,52797.50,1019.45
+distance,distance,15,50261.00,55471.00,52655.62,960.04
+distance,distance,20,50445.00,55799.00,52628.33,933.94
+distance,distance,30,50212.00,55799.00,52657.67,899.58
+distance,distance,50,50492.00,55799.00,52665.21,901.40
+distance,cost,1,107845.00,154292.00,133922.40,8381.44
+distance,cost,5,63790.00,76454.00,68623.76,2556.65
+distance,cost,10,57652.00,66941.00,62355.82,1733.51
+distance,cost,15,54168.00,64844.00,60388.10,1585.89
+distance,cost,20,53806.00,62382.00,58040.27,1578.54
+distance,cost,30,51312.00,58615.00,54942.69,1284.72
+distance,cost,50,51038.00,56468.00,53081.78,937.75
+distance,distance_plus_cost,1,71515.00,90613.00,80803.20,3953.53
+distance,distance_plus_cost,5,50959.00,56892.00,53821.97,1145.50
+distance,distance_plus_cost,10,50131.00,55404.00,52696.09,952.01
+distance,distance_plus_cost,15,50195.00,55542.00,52640.07,935.92
+distance,distance_plus_cost,20,50445.00,55799.00,52644.33,940.62
+distance,distance_plus_cost,30,50212.00,55799.00,52662.40,901.94
+distance,distance_plus_cost,50,50492.00,55799.00,52663.82,899.50
+cost,distance,1,77011.00,114863.00,94002.29,6763.29
+cost,distance,5,54102.00,70261.00,59779.93,2258.24
+cost,distance,10,52698.00,62449.00,57163.41,1735.19
+cost,distance,15,52700.00,61929.00,56487.46,1572.01
+cost,distance,20,51848.00,59630.00,54949.80,1287.94
+cost,distance,30,51297.00,57095.00,53758.07,1145.55
+cost,distance,50,50648.00,55778.00,52787.16,1017.26
+cost,cost,1,134936.00,192607.00,161260.91,10652.72
+cost,cost,5,62871.00,90447.00,76375.17,4424.22
+cost,cost,10,58942.00,79196.00,67216.26,3369.11
+cost,cost,15,58321.00,74723.00,64424.79,2821.39
+cost,cost,20,55428.00,64931.00,58992.05,1655.19
+cost,cost,30,51907.00,59184.00,55222.66,1256.95
+cost,cost,50,50363.00,55385.00,53121.19,944.60
+cost,distance_plus_cost,1,84792.00,118442.00,96883.89,6069.96
+cost,distance_plus_cost,5,53762.00,66750.00,60084.97,2303.02
+cost,distance_plus_cost,10,52874.00,63007.00,57286.05,1742.79
+cost,distance_plus_cost,15,53233.00,64643.00,56643.07,1710.10
+cost,distance_plus_cost,20,51920.00,58985.00,54912.17,1258.84
+cost,distance_plus_cost,30,51297.00,57095.00,53777.78,1147.53
+cost,distance_plus_cost,50,50648.00,55778.00,52796.12,1010.72
+distance_plus_cost,distance,1,65454.00,89870.00,77537.60,4184.36
+distance_plus_cost,distance,5,50515.00,55853.00,53127.50,1120.01
+distance_plus_cost,distance,10,50422.00,55960.00,52577.02,989.42
+distance_plus_cost,distance,15,50461.00,55079.00,52716.10,904.62
+distance_plus_cost,distance,20,50361.00,55521.00,52633.97,896.32
+distance_plus_cost,distance,30,50492.00,55799.00,52637.75,896.81
+distance_plus_cost,distance,50,50492.00,55799.00,52660.19,909.60
+distance_plus_cost,cost,1,101382.00,151324.00,123992.69,9317.68
+distance_plus_cost,cost,5,59417.00,71877.00,65684.12,2208.15
+distance_plus_cost,cost,10,56420.00,67454.00,62077.11,1838.83
+distance_plus_cost,cost,15,54854.00,64947.00,60270.83,1713.01
+distance_plus_cost,cost,20,54490.00,63326.00,58043.42,1497.79
+distance_plus_cost,cost,30,51312.00,58615.00,54905.45,1250.25
+distance_plus_cost,cost,50,50952.00,56468.00,53076.02,945.85
+distance_plus_cost,distance_plus_cost,1,68030.00,86900.00,77079.82,3566.89
+distance_plus_cost,distance_plus_cost,5,50621.00,55550.00,52734.44,943.19
+distance_plus_cost,distance_plus_cost,10,50661.00,55055.00,52532.39,875.40
+distance_plus_cost,distance_plus_cost,15,50379.00,55195.00,52639.79,952.33
+distance_plus_cost,distance_plus_cost,20,50470.00,55615.00,52625.77,879.22
+distance_plus_cost,distance_plus_cost,30,50492.00,55799.00,52638.67,888.29
+distance_plus_cost,distance_plus_cost,50,50492.00,55799.00,52658.79,907.71

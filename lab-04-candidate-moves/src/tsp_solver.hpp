@@ -11,9 +11,19 @@ struct Result {
     int total_cost = 0;
 };
 
-enum class CandidateRanking {
-    DistanceIntraPlusCostsInter,
-    DistancePlusNodeCostsForAll,
+// How the other vertices v are ranked when the "nearest" vertices of u are chosen as its
+// candidates. The cost of u itself would add the same amount to every score, so it is left
+// out; ties go to the smaller vertex index.
+enum class NearestMetric {
+    Distance,          // d(u, v)
+    Cost,              // cost(v)
+    DistancePlusCost,  // d(u, v) + cost(v)
+};
+
+// Ranking used for the candidate edges of each move type.
+struct CandidateDefinition {
+    NearestMetric intra = NearestMetric::Distance;          // 2-opt moves
+    NearestMetric inter = NearestMetric::DistancePlusCost;  // selected/unselected exchanges
 };
 
 // Steepest local search in the neighbourhood made of 2-opt moves (intra-route) and
@@ -27,12 +37,15 @@ enum class CandidateRanking {
 class TSPSolver {
 public:
     TSPSolver(const DistanceMatrix& distances, std::vector<int> node_costs, int candidate_count = 10,
-              CandidateRanking candidate_ranking = CandidateRanking::DistanceIntraPlusCostsInter);
+              CandidateDefinition candidate_definition = {});
 
     Result randomStartingSolution(std::mt19937& rng) const;
     Result steepestLocalSearch(const Result& initial, bool use_candidate_moves) const;
 
     int targetCount() const { return target_count_; }
+    // Wall-clock time the constructor spent building the candidate lists (choosing the
+    // nearest vertices and preparing the lists for the search).
+    double candidateListMilliseconds() const { return candidate_list_ms_; }
 
 private:
     enum class MoveType {
@@ -75,7 +88,7 @@ private:
 
     int objective(const std::vector<int>& open_route) const;
     Result makeResult(const std::vector<int>& open_route) const;
-    void buildCandidateLists(int candidate_count, CandidateRanking candidate_ranking);
+    void buildCandidateLists(int candidate_count, CandidateDefinition candidate_definition);
     CandidateLists packCandidateLists(const std::vector<char>& is_candidate, bool add_node_cost,
                                       bool sort_by_weight) const;
 
@@ -85,4 +98,5 @@ private:
     int target_count_;
     CandidateLists intra_;  // 2-opt candidates by node index; only selected entries are scanned
     CandidateLists inter_;  // exchange candidates by weight; only unselected entries are scanned
+    double candidate_list_ms_ = 0.0;
 };
