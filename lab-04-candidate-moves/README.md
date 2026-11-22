@@ -7,7 +7,7 @@ This laboratory accelerates the steepest local search from Lab 03 by evaluating 
 The experiment evaluates the full-neighborhood baseline and a candidate-move method for several candidate-list sizes. By default it tests `k = 1, 5, 10, 15, 20, 30, 50`. The `k = 1` case uses only the single nearest candidate edge from each endpoint. All methods use the same 200 pre-generated random starting cycles for a given instance:
 
 1. **Steepest local search - full neighborhood**
-   - evaluates every valid 2-opt move;
+   - evaluates every valid 2-opt move, i.e. every reversal of a route segment of at least two nodes except the reversal of the whole route (reversing two neighboring nodes swaps them);
    - evaluates every selected-to-unselected replacement;
    - applies the improving move with the most negative objective delta.
 2. **Steepest local search - candidate moves (`k`)**
@@ -24,13 +24,15 @@ All move evaluations use direct objective deltas. The implementation does not re
 
 ## Implementation and performance
 
-The local search is implemented for speed without changing what it computes: every iteration applies the move with the lowest delta, and ties are broken by the same fixed move order as in the first, straightforward version of this lab (which materialised every neighbourhood as a list of moves). Every run therefore ends in exactly the same local optimum as before, only faster.
+The local search is implemented for speed without changing what it computes: every iteration applies the move with the lowest delta, and ties are broken by a fixed move order, the scan order of a straightforward implementation that materialises every neighbourhood as a list of moves. Every run therefore ends in exactly the same local optimum as that straightforward implementation, only faster.
+
+The first version of this lab left out 2-opt moves that reverse exactly two neighbouring nodes (only segments of three or more nodes were reversed, apart from a few wrap-around cases). Such a move is a proper 2-opt move — it removes two non-adjacent edges — so both neighbourhoods now include it. This changes the results: with the same starting solutions, 80–96% of the runs (depending on the method) end in a better local optimum, and the average objective drops by 0.7% (`k = 1`) to 2.0%, about 1.5% for the full neighbourhood.
 
 * **No allocation in the search loop.** Moves are evaluated on the fly; the distance matrix is one contiguous array; the route is stored with sentinel copies of its ends, so neighbours are read without modulo arithmetic; route-edge lengths and node positions are cached and updated incrementally after each move.
 * **Full neighbourhood.** Each row of 2-opt moves and each position's exchange scan is reduced to its minimum without branches (the exchange scan runs over all nodes with a penalty for selected ones, which the compiler vectorises); the arg-min is located only when a row beats the best move so far.
 * **Candidate moves.** Candidate lists are stored in compressed form with precomputed delta parts. A per-list bitmask, updated through mirror entries when a node enters or leaves the solution, lets 2-opt scans visit only selected candidates and exchange scans only unselected ones. Every selected node is visited once: its 2-opt list yields both moves that introduce a candidate edge, and each pair of selected nodes is evaluated once, from the endpoint with the smaller position. Exchange lists are sorted by `d(u, v) + cost(v)`, so a scan stops at the first candidate that can no longer match the best move (exact, because distances are non-negative). Tie-breaking uses each move's rank in the original scan order, so the visiting order is free.
 
-Equivalence with the straightforward implementation was verified run by run (identical final routes and objectives) on TSPA/TSPB for the full neighbourhood and every tested candidate-list size and ranking policy, and on many random instances including tiny and odd-sized ones.
+Equivalence with the straightforward implementation (with the same neighbourhood) was verified run by run (identical final routes and objectives) on TSPA/TSPB for the full neighbourhood and every tested candidate-list size and ranking policy, and on many random instances including tiny and odd-sized ones.
 
 ## Evaluation and timing
 

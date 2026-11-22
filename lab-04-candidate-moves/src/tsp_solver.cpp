@@ -208,10 +208,11 @@ TSPSolver::Move TSPSolver::Search::bestFullMove() const {
     const int* exchange_cost = exchange_cost_.data();
     Move best;
 
-    // 2-opt (first, second): reverse route[first..second] for first + 2 <= second <= k - 1,
+    // 2-opt (first, second): reverse route[first..second] for first + 1 <= second <= k - 1,
     // except (0, k - 1), which would reverse the whole cycle. Removes the edges
     // (a, b) = (route[first-1], route[first]) and (c, d) = (route[second], route[second+1])
-    // and adds (a, c) and (b, d).
+    // and adds (a, c) and (b, d). second == first + 1 swaps two neighbouring nodes; the
+    // edge (b, c) between them stays, with the same length because the matrix is symmetric.
     for (int first = 0; first < k; ++first) {
         const int* from_a = distancesFrom(route[first - 1]);
         const int* from_b = distancesFrom(route[first]);
@@ -225,7 +226,7 @@ TSPSolver::Move TSPSolver::Search::bestFullMove() const {
         int lowest1 = INT_MAX;
         int lowest2 = INT_MAX;
         int lowest3 = INT_MAX;
-        int second = first + 2;
+        int second = first + 1;
         for (; second + 3 <= last; second += 4) {
             lowest0 = std::min(lowest0, partial(second));
             lowest1 = std::min(lowest1, partial(second + 1));
@@ -237,7 +238,7 @@ TSPSolver::Move TSPSolver::Search::bestFullMove() const {
         }
         const int lowest = std::min(std::min(lowest0, lowest1), std::min(lowest2, lowest3));
         if (lowest - removed_ab < best.delta) {
-            second = first + 2;
+            second = first + 1;
             while (partial(second) != lowest) {
                 ++second;
             }
@@ -327,18 +328,19 @@ TSPSolver::Move TSPSolver::Search::bestCandidateMove() {
         const int owner = route[q];
 
         // 2-opt: C(q) reverses route[q .. j-1] (j == 0 wraps to k - 1), B(q+1) reverses
-        // route[q+1 .. j]. For j >= 1 both need j - 1 >= q + 2; for j == 0 only C(q) exists
-        // and needs k - 1 >= q + 2. With q <= k - 3 both tests are the single comparison of
-        // j - 1 with q + 2: signed for B(q+1), unsigned for C(q) (0 - 1 wraps to the maximum).
-        // Owner k - 2 has no valid 2-opt move and owner k - 1 only serves B(0), whose
-        // candidates sit at small positions, so it scans the full selection mask. Owner 0 does
-        // not hide itself, because later owners need it for their wrap-around C moves.
-        if (q <= k - 3) {
+        // route[q+1 .. j]; a move needs second > first. For j >= 1 both therefore need
+        // j - 1 >= q + 1; for j == 0 only C(q) exists and needs k - 1 >= q + 1. With
+        // q <= k - 2 both tests are the single comparison of j - 1 with q + 1: signed for
+        // B(q+1), unsigned for C(q) (0 - 1 wraps to the maximum). Owner k - 1 only serves
+        // B(0), whose candidates sit at small positions, so it scans the full selection mask.
+        // Owner 0 does not hide itself, because later owners need it for their wrap-around
+        // C moves.
+        if (q <= k - 2) {
             const int* from_prev = distancesFrom(route[q - 1]);
             const int* from_next = distancesFrom(route[q + 1]);
             const int removed_c = edge[q - 1];  // (route[q-1], u)
             const int removed_b = edge[q];      // (u, route[q+1])
-            const int min_gap = q + 2;
+            const int min_gap = q + 1;
             int bound_c = best.delta + removed_c;
             int bound_b = best.delta + removed_b;
             const std::uint64_t hide = q == 0 ? 0 : ~std::uint64_t{0};
@@ -367,8 +369,8 @@ TSPSolver::Move TSPSolver::Search::bestCandidateMove() {
                     bound_b = best.delta + removed_b;
                 }
             });
-        } else if (q == k - 1) {
-            // B(0): reverse route[0 .. j], adds (u, v) and (route[0], route[j+1]).
+        } else {
+            // B(0): reverse route[0 .. j] for j >= 1, adds (u, v) and (route[0], route[j+1]).
             const int* from_first = distancesFrom(route[0]);
             const int removed_b = edge[k - 1];
             int bound_b = best.delta + removed_b;
@@ -376,7 +378,7 @@ TSPSolver::Move TSPSolver::Search::bestCandidateMove() {
                 const Candidate candidate = intra_entries[entry];
                 const int j = pos[candidate.node];
                 const int partial_b = candidate.weight + from_first[route[j + 1]] - edge[j];
-                if ((j >= 2) & (partial_b <= bound_b)) {
+                if ((j >= 1) & (partial_b <= bound_b)) {
                     consider(partial_b - removed_b, entry - intra_offsets[owner], MoveType::TwoOpt, 0, j);
                     bound_b = best.delta + removed_b;
                 }
