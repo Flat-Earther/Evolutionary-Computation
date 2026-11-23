@@ -1,0 +1,5 @@
+method_name,average_ms,minimum_ms,maximum_ms
+steepest_full,0.821520,0.674900,1.693000
+lm_new_moves,0.353905,0.281400,0.646600
+lm_alternative,0.331997,0.254900,0.810400
+candidate_k10,0.503016,0.415100,1.185300

@@ -1,0 +1,5 @@
+method_name,applied,applied_two_opt,applied_inverted,evaluated,inserted,initial_inserted,checked,removed,not_applicable,full_evaluations,same_as_baseline
+steepest_full,132.26,,,1992028.99,,,,,,,200
+lm_new_moves,132.26,79.17,25.36,123599.35,14010.65,9816.96,14913.92,13852.44,925.97,1.00,200
+lm_alternative,153.08,97.06,31.64,176216.50,11461.70,9816.96,12119.03,11191.86,772.22,8.95,0
+candidate_k10,132.20,,,,,,,,,,0

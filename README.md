@@ -15,7 +15,7 @@ The repository contains solutions and reports for the following assignments:
 | 02.5       | Reversed traversal of regret heuristics                                   | Finished   |
 | 03         | Local search                                                              | Finished   |
 | 04         | Candidate moves                                                           | Finished                      |
-| 05         | Use of move evaluations (deltas) from previous iterations in local search | Not started |
+| 05         | Use of move evaluations (deltas) from previous iterations in local search | Finished    |
 | 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Not started |
 | 07         | Large Neighborhood Search                                                 | Not started |
 | 08         | Global convexity (fitness-distance/similarity correlations) tests         | Not started |
@@ -319,6 +319,27 @@ The complete implementation, evaluation artifacts, report generator, and report 
 lab-04-candidate-moves/
 lab-04-candidate-moves/generate_report.py
 lab-04-candidate-moves/report.pdf
+```
+
+---
+
+# Lab 05 - Move Evaluations from Previous Iterations
+
+The fifth laboratory speeds up the steepest local search (2-opt plus selected-to-unselected exchange, random starting solutions) by reusing move evaluations from previous iterations. Improving moves of both kinds are kept in one list of moves (LM) ordered by delta. When LM is browsed, a stored 2-opt move is removed if one of its edges no longer exists, kept if its edges exist in a different relative direction, and applied if they exist in the same relative direction (also both reversed); every pair of edges is evaluated in both reconnections, including the one with relatively inverted edges.
+
+Two LM variants are compared with the plain steepest local search (baseline) and, for reference, with the Lab 04 candidate moves (`k = 10`), each 200 times per instance from the same random starting solutions:
+
+* **LM - new moves evaluated after each move** reaches exactly the same local optimum as the baseline in every run and is about 2.3-2.4x faster;
+* **LM - alternative algorithm** (all moves are evaluated again only when LM has no applicable move) is about 2.5-2.6x faster, with different local optima of practically the same average quality.
+
+The evaluation records objective statistics, per-run running times, work counters (moves evaluated, inserted into LM, checked, removed and kept), best and worst routes, and visualizations.
+
+The complete implementation, evaluation artifacts, report generator, and report are available in:
+
+```text
+lab-05-previous-deltas/
+lab-05-previous-deltas/generate_report.py
+lab-05-previous-deltas/report.pdf
 ```
 
 ---
