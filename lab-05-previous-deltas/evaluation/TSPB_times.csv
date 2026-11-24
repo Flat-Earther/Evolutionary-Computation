@@ -1,5 +1,6 @@
-method_name,average_ms,minimum_ms,maximum_ms
-steepest_full,0.819316,0.684500,1.413300
-lm_new_moves,0.340936,0.292700,0.722500
-lm_alternative,0.317457,0.251200,0.868000
-candidate_k10,0.526822,0.426000,1.092300
+method_name,average_ms,minimum_ms,maximum_ms,candidate_lists_ms,lm_memory_ms,prepared_average_ms
+steepest_full,0.784039,0.684500,0.868300,0.000000,0.000000,
+lm_new_moves,0.340576,0.303800,0.424700,0.000000,0.030200,0.370393
+lm_alternative,0.316558,0.264200,0.417400,0.000000,0.030200,0.347464
+candidate_k10,0.500293,0.432200,0.563500,0.600300,0.000000,1.102343
+lm_candidate_k10,0.308130,0.276800,0.337300,0.600300,0.135500,1.033845

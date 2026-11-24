@@ -327,12 +327,13 @@ lab-04-candidate-moves/report.pdf
 
 The fifth laboratory speeds up the steepest local search (2-opt plus selected-to-unselected exchange, random starting solutions) by reusing move evaluations from previous iterations. Improving moves of both kinds are kept in one list of moves (LM) ordered by delta. When LM is browsed, a stored 2-opt move is removed if one of its edges no longer exists, kept if its edges exist in a different relative direction, and applied if they exist in the same relative direction (also both reversed); every pair of edges is evaluated in both reconnections, including the one with relatively inverted edges.
 
-Two LM variants are compared with the plain steepest local search (baseline) and, for reference, with the Lab 04 candidate moves (`k = 10`), each 200 times per instance from the same random starting solutions:
+Three LM variants are compared with the plain steepest local search (baseline) and with the Lab 04 candidate moves (`k = 10`), each 200 times per instance from the same random starting solutions:
 
-* **LM - new moves evaluated after each move** reaches exactly the same local optimum as the baseline in every run and is about 2.3-2.4x faster;
-* **LM - alternative algorithm** (all moves are evaluated again only when LM has no applicable move) is about 2.5-2.6x faster, with different local optima of practically the same average quality.
+* **LM - new moves evaluated after each move** reaches exactly the same local optimum as the baseline in every run and is about 2.3x faster;
+* **LM - alternative algorithm** (all moves are evaluated again only when LM has no applicable move) is about 2.4-2.5x faster, with different local optima of practically the same average quality;
+* **LM + candidate moves** (the optional combination of both mechanisms) reaches exactly the same local optimum as the Lab 04 candidate moves in every run, about 1.6x faster than them, and is the fastest method (2.5-2.6x faster than the baseline).
 
-The evaluation records objective statistics, per-run running times, work counters (moves evaluated, inserted into LM, checked, removed and kept), best and worst routes, and visualizations.
+The evaluation records objective statistics, per-run running times, the one-time preparation (candidate lists, LM memory) and the time of a run that includes it, work counters (moves evaluated, inserted into LM, checked, removed and kept), best and worst routes, and visualizations.
 
 The complete implementation, evaluation artifacts, report generator, and report are available in:
 

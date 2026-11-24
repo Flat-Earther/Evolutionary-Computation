@@ -1,5 +1,6 @@
-method_name,applied,applied_two_opt,applied_inverted,evaluated,inserted,initial_inserted,checked,removed,not_applicable,full_evaluations,same_as_baseline
-steepest_full,133.31,,,2007800.19,,,,,,,200
-lm_new_moves,133.31,78.64,24.31,124426.99,13575.59,9827.58,14604.83,13416.75,1050.57,1.00,200
-lm_alternative,151.77,92.53,28.92,178482.00,11284.75,9827.58,11997.05,11014.73,828.28,9.06,0
-candidate_k10,133.42,,,,,,,,,,0
+method_name,applied,applied_two_opt,applied_inverted,evaluated,inserted,initial_inserted,checked,removed,not_applicable,full_evaluations,same_as_baseline,same_as_candidate
+steepest_full,133.31,,,2007800.19,,,,,,,200,
+lm_new_moves,133.31,78.64,24.31,124426.99,13575.59,9827.58,14604.83,13416.75,1050.57,1.00,200,
+lm_alternative,151.77,92.53,28.92,178482.00,11284.75,9827.58,11997.05,11014.73,828.28,9.06,0,
+candidate_k10,133.42,,,,,,,,,,0,200
+lm_candidate_k10,133.42,77.98,24.54,11045.35,4405.30,2196.44,5424.62,4246.57,1040.20,1.00,0,200

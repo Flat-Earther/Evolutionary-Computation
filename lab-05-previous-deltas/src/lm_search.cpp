@@ -41,6 +41,12 @@ struct StoredMove {
 };
 static_assert(sizeof(StoredMove) == 16, "a stored move should take 16 bytes");
 
+// Entry of an exchange candidate list of node u, sorted by weight = d(u, node) + cost(node).
+struct WeightedCandidate {
+    int node;
+    int weight;
+};
+
 // An improving move found by a scan, before it is added to LM.
 struct Found {
     int index;  // 2-opt: 2 * position of the other edge, + 1 for the inverted reconnection;
@@ -85,6 +91,7 @@ inline int lowestSetBit(std::uint64_t word) {
 class MoveListSearch::State {
 public:
     State(const int* distances, const int* costs, int node_count, int target_count, int buckets);
+    void setCandidates(const CandidateSets& candidates);  // restricts the search to candidate moves
 
     void reset(const std::vector<int>& closed_route);  // also clears LM and the counters
     int cost() const;
@@ -114,6 +121,22 @@ private:
     void evaluateEntering(int node, int begin, int end);
     void reverse(int from, int to);
 
+    // Candidate mode: only moves that add at least one candidate edge, generated from the lists.
+    int nextIndex(int position) const { return position + 1 == m_ ? 0 : position + 1; }
+    bool isIntra(int u, int v) const { return intra_member_[static_cast<std::size_t>(u) * n_ + v] != 0; }
+    bool isInter(int u, int v) const { return inter_member_[static_cast<std::size_t>(u) * n_ + v] != 0; }
+    std::int64_t edgeKey(int u, int v) const {
+        return static_cast<std::int64_t>(std::min(u, v)) * n_ + std::max(u, v);
+    }
+    bool noCommonNode(int first_edge, int second_edge) const;
+    void pushPair(int edge, int other, bool inverted);
+    void pushExchange(int position, int entering);
+    void evaluateAllCandidates();
+    void candidatePairsWithEdge(int edge, int skip_edge);
+    void candidateExchangesAt(int position);
+    void candidateEntering(int node, int position);
+    std::int64_t candidateRank(const StoredMove& move) const;
+
     const int* distances_;
     const int* costs_;
     int n_;
@@ -134,6 +157,12 @@ private:
     std::vector<int> head_;  // first move of every bucket (bucket = -delta), -1 if empty
     std::vector<std::uint64_t> nonempty_;
     int top_word_ = -1;  // no word above it has a bit set
+
+    bool candidate_mode_ = false;
+    std::vector<int> intra_offsets_, intra_nodes_;  // candidate lists (node order), compressed rows
+    std::vector<int> inter_offsets_, inter_nodes_;
+    std::vector<WeightedCandidate> inter_by_weight_;  // inter lists sorted by d(u, v) + cost(v)
+    std::vector<std::uint8_t> intra_member_, inter_member_;  // n x n: is {u, v} a candidate edge
 };
 
 MoveListSearch::State::State(const int* distances, const int* costs, int node_count, int target_count,
@@ -153,6 +182,53 @@ MoveListSearch::State::State(const int* distances, const int* costs, int node_co
       pool_(kInitialPool),
       head_(static_cast<std::size_t>(buckets), -1),
       nonempty_(static_cast<std::size_t>(buckets) / 64 + 1, 0) {}
+
+void MoveListSearch::State::setCandidates(const CandidateSets& candidates) {
+    const std::size_t n = static_cast<std::size_t>(n_);
+    const auto build = [&](const std::vector<std::vector<int>>& lists, std::vector<int>& offsets,
+                           std::vector<int>& nodes, std::vector<std::uint8_t>& member) {
+        if (lists.size() != n) {
+            throw std::invalid_argument("candidate lists must have one list per node");
+        }
+        offsets.assign(n + 1, 0);
+        nodes.clear();
+        member.assign(n * n, 0);
+        for (std::size_t owner = 0; owner < n; ++owner) {
+            int previous = -1;
+            for (const int node : lists[owner]) {
+                if (node <= previous || node >= n_ || static_cast<std::size_t>(node) == owner) {
+                    throw std::invalid_argument("candidate lists must be sorted by node index, without the owner");
+                }
+                previous = node;
+                nodes.push_back(node);
+                member[owner * n + static_cast<std::size_t>(node)] = 1;
+            }
+            offsets[owner + 1] = static_cast<int>(nodes.size());
+        }
+        for (std::size_t owner = 0; owner < n; ++owner) {  // every listed pair must be listed both ways
+            for (int entry = offsets[owner]; entry < offsets[owner + 1]; ++entry) {
+                if (member[static_cast<std::size_t>(nodes[static_cast<std::size_t>(entry)]) * n + owner] == 0) {
+                    throw std::invalid_argument("candidate lists must be symmetric");
+                }
+            }
+        }
+    };
+    build(candidates.intra, intra_offsets_, intra_nodes_, intra_member_);
+    build(candidates.inter, inter_offsets_, inter_nodes_, inter_member_);
+    inter_by_weight_.clear();
+    for (int owner = 0; owner < n_; ++owner) {
+        const auto first = inter_by_weight_.size();
+        for (int entry = inter_offsets_[owner]; entry < inter_offsets_[owner + 1]; ++entry) {
+            const int node = inter_nodes_[entry];
+            inter_by_weight_.push_back({node, dist(owner, node) + costs_[node]});
+        }
+        std::sort(inter_by_weight_.begin() + static_cast<std::ptrdiff_t>(first), inter_by_weight_.end(),
+                  [](const WeightedCandidate& left, const WeightedCandidate& right) {
+                      return left.weight != right.weight ? left.weight < right.weight : left.node < right.node;
+                  });
+    }
+    candidate_mode_ = true;
+}
 
 void MoveListSearch::State::refreshSentinels() {
     route_[-1] = route_[m_ - 1];
@@ -222,6 +298,9 @@ int MoveListSearch::State::status(const StoredMove& move) const {
 // moves "reverse route[i..j]" by (i, j), then exchanges by (position, node)); among moves with
 // equal delta the earliest is applied, exactly like in the plain search.
 std::int64_t MoveListSearch::State::rank(const StoredMove& move) const {
+    if (candidate_mode_) {
+        return candidateRank(move);
+    }
     if (move.type == kTwoOpt) {
         const bool forward = succ_[move.a] == move.b;
         const int first_edge = forward ? pos_[move.a] : pos_[move.b];
@@ -367,6 +446,10 @@ void MoveListSearch::State::evaluatePairs(int edge, int begin, int end) {
 
 // Every pair of route edges without a common node, in both reconnections, and every exchange.
 void MoveListSearch::State::evaluateAll() {
+    if (candidate_mode_) {
+        evaluateAllCandidates();
+        return;
+    }
     ++counters_.full_evaluations;
     for (int i = 0; i + 2 < m_; ++i) {
         evaluatePairs(i, i + 2, i == 0 ? m_ - 2 : m_ - 1);  // the edge at m - 1 ends in route[0]
@@ -497,13 +580,22 @@ void MoveListSearch::State::applyTaken(int id, MoveListVariant variant) {
         if (variant == MoveListVariant::NewMoves) {
             // The new edges are at positions p and q. Pairs of two old edges keep their deltas;
             // only their applicability may change, which is checked when LM is browsed.
-            evaluatePairsWithEdge(p, -1);
-            evaluatePairsWithEdge(q, p);
             // The four end nodes have a new neighbour, so their exchanges change.
-            evaluateExchangesAt(p);
-            evaluateExchangesAt(p + 1 == m ? 0 : p + 1);
-            evaluateExchangesAt(q);
-            evaluateExchangesAt(q + 1 == m ? 0 : q + 1);
+            if (candidate_mode_) {
+                candidatePairsWithEdge(p, -1);
+                candidatePairsWithEdge(q, p);
+                candidateExchangesAt(p);
+                candidateExchangesAt(nextIndex(p));
+                candidateExchangesAt(q);
+                candidateExchangesAt(nextIndex(q));
+            } else {
+                evaluatePairsWithEdge(p, -1);
+                evaluatePairsWithEdge(q, p);
+                evaluateExchangesAt(p);
+                evaluateExchangesAt(nextIndex(p));
+                evaluateExchangesAt(q);
+                evaluateExchangesAt(nextIndex(q));
+            }
         }
         return;
     }
@@ -525,7 +617,14 @@ void MoveListSearch::State::applyTaken(int id, MoveListVariant variant) {
     succ_[leaving] = -1;
     insertion_cost_[entering] = kBlocked;
     insertion_cost_[leaving] = costs_[leaving];
-    if (variant == MoveListVariant::NewMoves) {
+    if (variant == MoveListVariant::NewMoves && candidate_mode_) {
+        candidatePairsWithEdge(before, -1);  // new edge (route[before], entering)
+        candidatePairsWithEdge(position, -1);  // new edge (entering, route[after])
+        candidateExchangesAt(before);
+        candidateExchangesAt(position);
+        candidateExchangesAt(after);
+        candidateEntering(leaving, position);  // the removed node may now enter elsewhere
+    } else if (variant == MoveListVariant::NewMoves) {
         evaluatePairsWithEdge(before, -1);        // new edge (route[before], entering)
         evaluatePairsWithEdge(position, before);  // new edge (entering, route[after])
         evaluateExchangesAt(before);
@@ -546,11 +645,260 @@ void MoveListSearch::State::applyTaken(int id, MoveListVariant variant) {
     }
 }
 
+// ------------------------------------------------------------------ candidate mode
+//
+// A 2-opt move removes two edges and adds two edges, each joining an endpoint of one removed edge
+// with an endpoint of the other. It is a candidate move when one of the added edges is a candidate
+// edge {x, w}. The moves adding {x, w} remove one edge at x (x -> x+ or x- -> x) and one at w
+// (w -> w+ or w- -> w): four combinations, two in the reconnection applicable now (x and w both
+// tails or both heads of their removed edges) and two with relatively inverted edges.
+
+bool MoveListSearch::State::noCommonNode(int first_edge, int second_edge) const {
+    int gap = second_edge - first_edge;
+    if (gap < 0) {
+        gap += m_;
+    }
+    return gap > 1 && gap < m_ - 1;
+}
+
+// The 2-opt move removing the edges at positions `edge` (a -> b) and `other` (c -> d): applicable
+// now (adds (a, c), (b, d)) or with relatively inverted edges (adds (a, d), (b, c)).
+void MoveListSearch::State::pushPair(int edge, int other, bool inverted) {
+    const int a = route_[edge];
+    const int b = route_[edge + 1];
+    const int c = route_[other];
+    const int d = route_[other + 1];
+    const int removed = edge_[edge] + edge_[other];
+    ++counters_.evaluated;
+    if (!inverted) {
+        const int delta = dist(a, c) + dist(b, d) - removed;
+        if (delta < 0) {
+            push(a, b, c, d, delta, kTwoOpt, false);
+        }
+    } else {
+        const int delta = dist(a, d) + dist(b, c) - removed;
+        if (delta < 0) {
+            push(a, b, d, c, delta, kTwoOpt, true);
+        }
+    }
+}
+
+// Exchange: `entering` (not selected) replaces the node at `position`.
+void MoveListSearch::State::pushExchange(int position, int entering) {
+    const int leaving = route_[position];
+    const int before = route_[position - 1];
+    const int after = route_[position + 1];
+    ++counters_.evaluated;
+    const int delta = dist(before, entering) + dist(entering, after) + costs_[entering] - edge_[position - 1] -
+                      edge_[position] - costs_[leaving];
+    if (delta < 0) {
+        push(leaving, entering, before, after, delta, kExchange);
+    }
+}
+
+// All candidate moves of the solution: for every candidate edge {x, w} between selected nodes (once,
+// x < w) the up to four 2-opt moves adding it - a move adding two candidate edges is generated from
+// the one with the smaller key only - and every candidate exchange.
+void MoveListSearch::State::evaluateAllCandidates() {
+    ++counters_.full_evaluations;
+    for (int x = 0; x < n_; ++x) {
+        const int px = pos_[x];
+        if (px < 0) {
+            continue;
+        }
+        const int x_out = px;
+        const int x_in = previousIndex(px);
+        const int xs = route_[px + 1];
+        const int xp = route_[px - 1];
+        for (int entry = intra_offsets_[x]; entry < intra_offsets_[x + 1]; ++entry) {
+            const int w = intra_nodes_[entry];
+            const int pw = pos_[w];
+            if (w <= x || pw < 0) {
+                continue;
+            }
+            const int w_out = pw;
+            const int w_in = previousIndex(pw);
+            const int ws = route_[pw + 1];
+            const int wp = route_[pw - 1];
+            const std::int64_t key = edgeKey(x, w);
+            const auto here = [&](int u, int v) { return !isIntra(u, v) || edgeKey(u, v) > key; };
+            if (noCommonNode(x_out, w_out) && here(xs, ws)) {
+                pushPair(x_out, w_out, false);  // adds (x, w), (xs, ws)
+            }
+            if (noCommonNode(x_in, w_in) && here(xp, wp)) {
+                pushPair(x_in, w_in, false);  // adds (xp, wp), (x, w)
+            }
+            if (noCommonNode(x_out, w_in) && here(xs, wp)) {
+                pushPair(x_out, w_in, true);  // adds (x, w), (xs, wp)
+            }
+            if (noCommonNode(x_in, w_out) && here(xp, ws)) {
+                pushPair(x_in, w_out, true);  // adds (xp, ws), (x, w)
+            }
+        }
+    }
+    for (int position = 0; position < m_; ++position) {
+        candidateExchangesAt(position);
+    }
+}
+
+// Candidate 2-opt moves that remove the edge x -> y at position `edge` (except together with the
+// edge at `skip_edge`), each once: first those adding a candidate edge at x, then those adding one
+// at y whose edge at x is not a candidate edge.
+void MoveListSearch::State::candidatePairsWithEdge(int edge, int skip_edge) {
+    const int x = route_[edge];
+    const int y = route_[edge + 1];
+    for (int entry = intra_offsets_[x]; entry < intra_offsets_[x + 1]; ++entry) {
+        const int w = intra_nodes_[entry];
+        const int pw = pos_[w];
+        if (pw < 0 || w == y) {
+            continue;
+        }
+        const int w_out = pw;
+        const int w_in = previousIndex(pw);
+        if (w_out != skip_edge && noCommonNode(edge, w_out)) {
+            pushPair(edge, w_out, false);  // adds (x, w), (y, ws)
+        }
+        if (w_in != skip_edge && noCommonNode(edge, w_in)) {
+            pushPair(edge, w_in, true);  // adds (x, w), (y, wp)
+        }
+    }
+    for (int entry = intra_offsets_[y]; entry < intra_offsets_[y + 1]; ++entry) {
+        const int w = intra_nodes_[entry];
+        const int pw = pos_[w];
+        if (pw < 0 || w == x) {
+            continue;
+        }
+        const int w_out = pw;
+        const int w_in = previousIndex(pw);
+        if (w_in != skip_edge && noCommonNode(edge, w_in) && !isIntra(x, route_[pw - 1])) {
+            pushPair(edge, w_in, false);  // adds (x, wp), (y, w)
+        }
+        if (w_out != skip_edge && noCommonNode(edge, w_out) && !isIntra(x, route_[pw + 1])) {
+            pushPair(edge, w_out, true);  // adds (x, ws), (y, w)
+        }
+    }
+}
+
+// Candidate exchanges replacing the node at `position`: the entering node is a candidate of the
+// node before or of the node after it (each entering node once). An exchange entering v via the
+// list of `before` has delta = weight(before, v) + d(v, after) - removed >= weight - removed, and the
+// lists are sorted by weight, so a scan stops at the first entry that cannot improve; this skips no
+// improving move. The same holds for the list of `after`.
+void MoveListSearch::State::candidateExchangesAt(int position) {
+    const int leaving = route_[position];
+    const int before = route_[position - 1];
+    const int after = route_[position + 1];
+    const int* from_before = row(before);
+    const int* from_after = row(after);
+    const int removed = edge_[position - 1] + edge_[position] + costs_[leaving];
+    const WeightedCandidate* entries = inter_by_weight_.data();
+    for (int entry = inter_offsets_[before]; entry < inter_offsets_[before + 1]; ++entry) {
+        const WeightedCandidate candidate = entries[entry];
+        if (candidate.weight >= removed) {
+            break;
+        }
+        if (pos_[candidate.node] < 0) {
+            ++counters_.evaluated;
+            const int delta = candidate.weight + from_after[candidate.node] - removed;
+            if (delta < 0) {
+                push(leaving, candidate.node, before, after, delta, kExchange);
+            }
+        }
+    }
+    for (int entry = inter_offsets_[after]; entry < inter_offsets_[after + 1]; ++entry) {
+        const WeightedCandidate candidate = entries[entry];
+        if (candidate.weight >= removed) {
+            break;
+        }
+        if (pos_[candidate.node] < 0 && !isInter(before, candidate.node)) {
+            ++counters_.evaluated;
+            const int delta = from_before[candidate.node] + candidate.weight - removed;
+            if (delta < 0) {
+                push(leaving, candidate.node, before, after, delta, kExchange);
+            }
+        }
+    }
+}
+
+// Candidate exchanges inserting the newly unselected `node` next to one of its candidates, except at
+// the positions position - 1 .. position + 1 (evaluated already). A position whose both neighbours
+// are candidates of `node` is generated from the node before it only.
+void MoveListSearch::State::candidateEntering(int node, int position) {
+    const int before = previousIndex(position);
+    const int after = nextIndex(position);
+    for (int entry = inter_offsets_[node]; entry < inter_offsets_[node + 1]; ++entry) {
+        const int w = inter_nodes_[entry];
+        const int pw = pos_[w];
+        if (pw < 0) {
+            continue;
+        }
+        const int behind_w = nextIndex(pw);  // w is the node before this position
+        if (behind_w != before && behind_w != position && behind_w != after) {
+            pushExchange(behind_w, node);
+        }
+        const int ahead_w = previousIndex(pw);  // w is the node after this position
+        if (ahead_w != before && ahead_w != position && ahead_w != after && !isInter(node, route_[ahead_w - 1])) {
+            pushExchange(ahead_w, node);
+        }
+    }
+}
+
+// Position of an applicable candidate move in the scan order of the assignment-4 candidate search:
+// for f = 0 .. m-1 the 2-opt groups B(f) (the list of S[f-1]) and C(f) (the list of S[f]) of the
+// moves "reverse S[f..j]", then for every position p the exchange groups of the node before p and of
+// the node after p; each list in node order. A move counts at its first occurrence.
+std::int64_t MoveListSearch::State::candidateRank(const StoredMove& move) const {
+    const std::int64_t n = n_;
+    const auto index_in = [](const std::vector<int>& offsets, const std::vector<int>& nodes, int owner, int node) {
+        const auto first = nodes.begin() + offsets[static_cast<std::size_t>(owner)];
+        const auto last = nodes.begin() + offsets[static_cast<std::size_t>(owner) + 1];
+        return static_cast<std::int64_t>(std::lower_bound(first, last, node) - first);
+    };
+    if (move.type == kTwoOpt) {
+        const bool forward = succ_[move.a] == move.b;
+        const int first_edge = forward ? pos_[move.a] : pos_[move.b];
+        const int second_edge = forward ? pos_[move.c] : pos_[move.d];
+        const int p = std::min(first_edge, second_edge);
+        const int q = std::max(first_edge, second_edge);
+        const int i = q == m_ - 1 ? 0 : p + 1;  // the move is "reverse S[i..j]"
+        const int j = q == m_ - 1 ? p : q;
+        const int a = route_[i - 1];
+        const int b = route_[i];
+        const int c = route_[j];
+        const int d = route_[j + 1];
+        if (isIntra(a, c)) {
+            return 2 * i * n + index_in(intra_offsets_, intra_nodes_, a, c);  // group B(i)
+        }
+        return (2 * i + 1) * n + index_in(intra_offsets_, intra_nodes_, b, d);  // group C(i)
+    }
+    const std::int64_t m = m_;
+    const int position = pos_[move.a];
+    const int before = route_[position - 1];
+    const int after = route_[position + 1];
+    if (isInter(before, move.b)) {
+        return (2 * m + 2 * position) * n + index_in(inter_offsets_, inter_nodes_, before, move.b);
+    }
+    return (2 * m + 2 * position + 1) * n + index_in(inter_offsets_, inter_nodes_, after, move.b);
+}
+
 MoveListSearch::MoveListSearch(const DistanceMatrix& distances, std::vector<int> node_costs)
     : distances_(distances),
       costs_(std::move(node_costs)),
       node_count_(static_cast<int>(costs_.size())),
       target_count_(std::max(1, static_cast<int>(std::ceil(costs_.size() / 2.0)))) {
+    initialise(nullptr);
+}
+
+MoveListSearch::MoveListSearch(const DistanceMatrix& distances, std::vector<int> node_costs,
+                               const CandidateSets& candidates)
+    : distances_(distances),
+      costs_(std::move(node_costs)),
+      node_count_(static_cast<int>(costs_.size())),
+      target_count_(std::max(1, static_cast<int>(std::ceil(costs_.size() / 2.0)))) {
+    initialise(&candidates);
+}
+
+void MoveListSearch::initialise(const CandidateSets* candidates) {
     if (node_count_ < 3 || distances_.size() != node_count_) {
         throw std::invalid_argument("instance must contain at least 3 nodes and match the distance matrix");
     }
@@ -574,6 +922,9 @@ MoveListSearch::MoveListSearch(const DistanceMatrix& distances, std::vector<int>
     }
     const int buckets = 2 * max_distance + max_cost + 1;
     state_ = std::make_unique<State>(distances_.row(0), costs_.data(), node_count_, target_count_, buckets);
+    if (candidates != nullptr) {
+        state_->setCandidates(*candidates);
+    }
 }
 
 MoveListSearch::~MoveListSearch() = default;

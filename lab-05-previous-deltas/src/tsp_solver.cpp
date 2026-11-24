@@ -499,6 +499,22 @@ TSPSolver::TSPSolver(const DistanceMatrix& distances, std::vector<int> node_cost
     candidate_list_ms_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 }
 
+std::vector<std::vector<int>> TSPSolver::candidateNeighbours(bool intra) const {
+    const CandidateLists& lists = intra ? intra_ : inter_;
+    std::vector<std::vector<int>> neighbours(static_cast<std::size_t>(node_count_));
+    for (int node = 0; node < node_count_; ++node) {
+        const int begin = lists.offsets[static_cast<std::size_t>(node)];
+        const int end = lists.offsets[static_cast<std::size_t>(node) + 1];
+        auto& list = neighbours[static_cast<std::size_t>(node)];
+        list.resize(static_cast<std::size_t>(end - begin));
+        for (int entry = begin; entry < end; ++entry) {  // rank = position in node order
+            list[static_cast<std::size_t>(lists.rank[static_cast<std::size_t>(entry)])] =
+                lists.entries[static_cast<std::size_t>(entry)].node;
+        }
+    }
+    return neighbours;
+}
+
 int TSPSolver::objective(const std::vector<int>& route) const {
     int total = 0;
     for (std::size_t index = 0; index < route.size(); ++index) {

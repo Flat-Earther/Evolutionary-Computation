@@ -9,7 +9,8 @@ All methods are run from the same 200 random starting cycles per instance (the s
 1. **Steepest local search - full neighbourhood (baseline)** - evaluates every 2-opt move and every exchange in every iteration (the Lab 04 implementation, without the mechanisms below).
 2. **LM - new moves evaluated after each move** - the list of improving moves from the lecture. All moves of the starting solution are evaluated once; after a move is applied, only the new moves are evaluated (2-opt moves that remove one of the two new edges, exchanges of the nodes whose neighbours changed, and exchanges that insert the node that has just been removed) and the improving ones are added to LM.
 3. **LM - alternative algorithm** - the algorithm advised in the assignment: no moves are evaluated after a move is applied; when LM contains no applicable move, LM is cleared and all moves are evaluated again. The search stops when such a fresh evaluation gives no applicable move.
-4. **Candidate moves, k = 10 (Lab 04)** - for reference only; LM is not combined with candidate moves.
+4. **Candidate moves, k = 10 (Lab 04)** - the steepest local search restricted to candidate moves (moves that add at least one candidate edge), without LM.
+5. **LM + candidate moves, k = 10** - the optional combination of both mechanisms: LM with new moves after each move, restricted to the candidate moves of method 4. Only candidate moves are generated (from the candidate lists, never by filtering the full neighbourhood) and evaluated, for the starting solution and after every move.
 
 ## The list of moves
 
@@ -23,7 +24,11 @@ An exchange is applied if the removed node still lies between the same two neigh
 
 Every pair of edges is evaluated in both reconnections: the one applicable now and the one with relatively inverted edges, which becomes applicable after another move reverses one of the edges. This includes the evaluation of the starting solution. In the experiment 31-32% of the 2-opt moves applied by LM had been evaluated with relatively inverted edges.
 
-Among the applicable moves with the best delta, the one that comes first in the scan order of the baseline is applied. The LM search with new moves therefore applies the same moves as the baseline and reaches the same local optimum from every starting solution (verified for all 200 runs on both instances).
+Among the applicable moves with the best delta, the one that comes first in the scan order of the reference search is applied (the baseline for LM on the full neighbourhood, the Lab 04 candidate search for LM + candidate moves). LM with new moves therefore applies the same moves as the baseline, and LM + candidate moves the same moves as the Lab 04 candidate search; both reach the same local optimum as their reference from every starting solution (verified for all 200 runs on both instances).
+
+### LM + candidate moves
+
+A 2-opt move adds two edges, each joining an endpoint of one removed edge with an endpoint of the other, and is a candidate move when at least one of them is a candidate edge `{x, w}`. The moves that add `{x, w}` remove one edge at `x` and one at `w`, which gives four of them: two applicable now and two with relatively inverted edges. They are generated directly from the candidate edges between selected nodes; a move that adds two candidate edges is generated once. Exchanges are generated from the candidates of the two neighbours of the removed node. After a move, only the candidate moves that involve a new edge or a node whose neighbours changed are generated, and the candidate exchanges that insert the node just removed next to one of its candidates. The exchange lists are sorted by `d(u, v) + cost(v)`: an exchange that enters `v` next to `u` changes the objective by at least that amount minus what it removes, so a scan stops at the first entry that cannot improve without losing any improving move. The candidate lists are those built by the Lab 04 solver.
 
 ## Implementation and performance
 
@@ -31,25 +36,25 @@ Among the applicable moves with the best delta, the one that comes first in the 
 * **Checks in constant time.** The successor of every node is stored (`-1` for unselected nodes), so `x -> y` is an edge exactly when `succ(x) == y`. Both move types are checked without branching on the type, which is unpredictable while browsing.
 * **Evaluation.** The route has sentinel copies of its ends and cached edge lengths. Scans write every move into a buffer and keep only the improving ones without branches; exchange scans run over whole rows of the distance matrix four nodes at a time (SSE2), with a prohibitive insertion cost for selected nodes.
 * **Memory.** The pool of moves and the buckets are allocated once per instance and reused by all runs; within a run the pool is append-only.
-* **Verification.** After every run the objective is recomputed and compared with the accumulated deltas. The experiment also checks that the result of every LM run is a local optimum of the full neighbourhood and counts the runs that end in exactly the baseline's local optimum.
+* **Verification.** After every run the objective is recomputed and compared with the accumulated deltas. The experiment also checks that the result of every LM run is a local optimum of the neighbourhood that was searched, repeats every run and checks that it gives the same result, and counts the runs that end in exactly the local optimum of the reference search.
 
-With these measures a run of the LM search with new moves takes about 0.35 ms on TSPA and TSPB, against about 0.82 ms for the (vectorised) full-neighbourhood baseline - 2.3-2.4x faster, although it computes 16x fewer deltas. Most of the remaining time goes to inserting improving moves and checking them later: a random starting solution has about 9,800 improving moves (half of all moves), and about 99% of all moves inserted into LM are later removed because an edge or node is gone.
+On TSPA / TSPB the average time of a run is 0.77 / 0.78 ms for the (vectorised) full-neighbourhood baseline, 0.34 / 0.34 ms for LM with new moves (2.3x faster), 0.32 / 0.32 ms for the alternative algorithm, 0.46 / 0.50 ms for candidate moves and 0.29 / 0.31 ms for LM + candidate moves, the fastest method. LM with new moves computes 16x fewer deltas than the baseline. Most of its remaining time goes to inserting improving moves and checking them later: a random starting solution has about 9,800 improving moves (half of all moves), and about 99% of all moves inserted into LM are later removed because an edge or node is gone. LM + candidate moves computes 11-12x fewer deltas than LM with new moves, but is only about 1.1-1.2x faster, because candidate moves are generated from lists with irregular accesses and branches.
 
 ## Evaluation
 
-Each method is run 200 times on TSPA and TSPB. The runs of all methods are interleaved (for each starting cycle, every method once), so that changes of the processor clock affect all methods alike. Only the local search itself is timed. The evaluation stores:
+Each method is run 200 times on TSPA and TSPB. Every run is timed 5 times from the same starting solution, interleaved with the runs of the other methods (for each starting cycle, every method once), so that changes of the processor clock affect all methods alike; the smallest of the 5 times counts, which suppresses interruptions by the operating system. Only the local search itself is timed. The one-time preparation per instance - building the candidate lists and creating LM (its memory is allocated once and reused by all runs) - is measured separately, in a loop of its own after the runs, as the median over all starting solutions and repetitions. Each method that needs it is also timed with all of its preparation done at the beginning of every run. The evaluation stores:
 
 * `{TSPA,TSPB}_stats.csv` - `method_name,min,max,avg,sd` of the objective;
-* `{TSPA,TSPB}_times.csv` - `method_name,average_ms,minimum_ms,maximum_ms` per run;
+* `{TSPA,TSPB}_times.csv` - `method_name,average_ms,minimum_ms,maximum_ms,candidate_lists_ms,lm_memory_ms,prepared_average_ms`: the run times, the one-time preparation (0 where it does not apply) and the average time of a run that does its preparation at its beginning (empty if there is none);
 * `{TSPA,TSPB}_work.csv` - per-run averages of the work counters:
 
   ```text
-  method_name,applied,applied_two_opt,applied_inverted,evaluated,inserted,initial_inserted,checked,removed,not_applicable,full_evaluations,same_as_baseline
+  method_name,applied,applied_two_opt,applied_inverted,evaluated,inserted,initial_inserted,checked,removed,not_applicable,full_evaluations,same_as_baseline,same_as_candidate
   ```
 
-  `evaluated` is the number of deltas computed (for the baseline: (applied moves + 1) x 14,949 moves of the full neighbourhood), `inserted`/`initial_inserted` the moves added to LM in total and by the evaluation of the starting solution, `checked` the stored moves checked while browsing LM, of which `removed` were removed (situation 1) and `not_applicable` kept (situation 2), and `same_as_baseline` the number of runs ending in exactly the baseline's local optimum. Counters that do not apply to a method are empty;
+  `evaluated` is the number of deltas computed (for the baseline: (applied moves + 1) x 14,949 moves of the full neighbourhood), `inserted`/`initial_inserted` the moves added to LM in total and by the evaluation of the starting solution, `checked` the stored moves checked while browsing LM, of which `removed` were removed (situation 1) and `not_applicable` kept (situation 2), and `same_as_baseline` / `same_as_candidate` the number of runs ending in exactly the local optimum of the baseline / of the Lab 04 candidate search. Counters that do not apply to a method are empty;
 * `results/` - best and worst closed routes of every method;
-* `plots/` - SVG visualisations of the best and worst routes.
+* `plots/` - SVG visualisations of the best and worst routes (used by the report).
 
 ## Build and run
 
@@ -61,7 +66,7 @@ cmake --build build --config Release
 build/lab05.exe --seed 20260404
 ```
 
-Running times are part of the results, so the build must be optimised; `CMakeLists.txt` defaults to `Release` (`-O3`). For GCC/Clang the instruction-set level is set by `LAB05_ARCH` (default `x86-64-v2`); `-DLAB05_ARCH=` keeps the compiler default. The executable accepts `TSPA` or `TSPB` to run one instance, `--data-dir DIR` to override the data location and `--seed N` for the starting solutions.
+Running times are part of the results, so the build must be optimised; `CMakeLists.txt` defaults to `Release` (`-O3`). For GCC/Clang the instruction-set level is set by `LAB05_ARCH` (default `x86-64-v2`); `-DLAB05_ARCH=` keeps the compiler default. The executable accepts `TSPA` or `TSPB` to run one instance, `--data-dir DIR` to override the data location and `--seed N` for the starting solutions. The processor clock depends on the power state, so run the experiment with the laptop plugged in.
 
 Evaluation artifacts are written to:
 
@@ -75,7 +80,7 @@ The report is generated from the evaluation files with:
 python generate_report.py
 ```
 
-It builds the report as HTML (`.report-build/report.html`) and prints it to `report.pdf` with a headless Chromium-based browser - Microsoft Edge or Google Chrome, or the one named by the `REPORT_BROWSER` environment variable; `--html-only` skips the PDF. It also checks every reported best solution with the data and formulas of `problem-description/data/Solution checker.xlsx`. The generated report is available at:
+It builds the report as HTML (`.report-build/report.html`) and prints it to `report.pdf` with a headless Chromium-based browser - Microsoft Edge or Google Chrome, or the one named by the `REPORT_BROWSER` environment variable; `--html-only` skips the PDF. The plots of the best solutions are taken from `evaluation/plots`. It also checks every reported best solution with the data and formulas of `problem-description/data/Solution checker.xlsx`. The generated report is available at:
 
 ```text
 lab-05-previous-deltas/report.pdf

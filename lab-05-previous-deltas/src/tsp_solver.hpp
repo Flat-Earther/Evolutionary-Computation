@@ -48,6 +48,9 @@ public:
     // Wall-clock time the constructor spent building the candidate lists (choosing the
     // nearest vertices and preparing the lists for the search).
     double candidateListMilliseconds() const { return candidate_list_ms_; }
+    // The candidates of every node, each list sorted by node index: 2-opt candidates (intra)
+    // or exchange candidates (inter). Used by the list-of-moves search with candidate moves.
+    std::vector<std::vector<int>> candidateNeighbours(bool intra) const;
 
 private:
     enum class MoveType {
