@@ -27,6 +27,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from statistics import mean, median
 
 ROOT = Path(__file__).resolve().parent
 EVALUATION = ROOT / "evaluation"
@@ -90,6 +91,16 @@ class Data:
                 self.previous[inst][method] = rows[method]
         self.nodes = {i: load_nodes(i) for i in INSTANCES}
         self.checker = load_checker_tables()
+        self.snapshots = {i: read_csv(EVALUATION / f"{i}_trajectory_snapshots.csv") for i in INSTANCES}
+        # Trajectory of the best solution of every run: method -> runs -> points (ms, local searches, objective).
+        self.trajectories: dict[str, dict[str, list[list[tuple[float, int, int]]]]] = {}
+        for inst in INSTANCES:
+            runs: dict[tuple[str, int], list[tuple[float, int, int]]] = {}
+            for row in read_csv(EVALUATION / f"{inst}_trajectory.csv"):
+                key = (row["method_name"], int(row["run"]))
+                runs.setdefault(key, []).append((float(row["ms"]), int(row["local_searches"]), int(row["objective"])))
+            self.trajectories[inst] = {method: [runs[key] for key in sorted(runs) if key[0] == method]
+                                       for method in (MSLS, ILS)}
 
     def avg(self, inst: str, method: str) -> float:
         row = self.stats[inst].get(method) or self.previous[inst][method]
@@ -302,6 +313,183 @@ def runs_figure(data: Data) -> str:
     return f'<div class="legend"><span>One dot per run:</span>{legend}</div>{"".join(panels)}'
 
 
+# ---------------------------------------------------------------------- trajectories
+
+TICKS_MS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000)
+TABLE_TIMES_MS = (1, 5, 20, 50, 100)
+INK = "#191919"
+
+
+def best_so_far(runs: list[list[tuple[float, int, int]]], times: list[float]) -> list[list[float]]:
+    """Objective of the best solution of every run at every time (infinite before its first local optimum;
+    a run that has ended keeps its final value)."""
+    values = []
+    for run in runs:
+        row, index = [], -1
+        for t in times:
+            while index + 1 < len(run) and run[index + 1][0] <= t:
+                index += 1
+            row.append(float(run[index][2]) if index >= 0 else math.inf)
+        values.append(row)
+    return values
+
+
+def median_at(runs: list[list[tuple[float, int, int]]], times: list[float]) -> list[float]:
+    """Median over the runs of the best objective found by each time (infinite while fewer than half of the
+    runs have finished their first local search)."""
+    columns = best_so_far(runs, times)
+    return [median(sorted(column[k] for column in columns)) for k in range(len(times))]
+
+
+def trajectory_facts(data: Data, inst: str) -> dict[str, float]:
+    """Numbers quoted in the text: when the median ILS curve gets below the median MSLS curve for good, when it
+    reaches the final median of MSLS, when the median ILS run made its last improvement, and how often MSLS
+    improved its best solution."""
+    runs = data.trajectories[inst]
+    limit = float(data.times[inst][ILS]["time_limit_ms"])
+    times = sorted({point[0] for method in (MSLS, ILS) for run in runs[method] for point in run if point[0] <= limit})
+    msls, ils = median_at(runs[MSLS], times), median_at(runs[ILS], times)
+    ahead = times[-1]
+    for index in range(len(times) - 1, -1, -1):
+        if not ils[index] < msls[index]:
+            break
+        ahead = times[index]
+    msls_final = median(run[-1][2] for run in runs[MSLS])
+    reach = next((t for t, value in zip(times, ils) if value <= msls_final), math.nan)
+    # The last point of a run is its end; the one before it is the last improvement (or the start).
+    last_improvement = median(run[-2][0] for run in runs[ILS])
+    msls_improvements = mean(len(run) - 2 for run in runs[MSLS])
+    return {"ahead": ahead, "reach": reach, "msls_final": msls_final, "ils_final": median(run[-1][2] for run in runs[ILS]),
+            "last_improvement": last_improvement, "msls_improvements": msls_improvements, "limit": limit}
+
+
+def step_path(points: list[tuple[float, float]], x, y) -> str:
+    """SVG path of a step function through (time, value) points; each value holds until the next time."""
+    path = f"M{x(points[0][0]):.1f},{y(points[0][1]):.1f}"
+    for (_, previous), (t, value) in zip(points, points[1:]):
+        path += f"H{x(t):.1f}"
+        if value != previous:
+            path += f"V{y(value):.1f}"
+    return path
+
+
+def trajectory_figure(data: Data) -> str:
+    """Best objective found so far against time, every run of MSLS and ILS (thin) with their medians (thick)
+    and the run that found the best ILS solution with its snapshot points; one panel per instance."""
+    width, left, right, top, height = 670.0, 66.0, 562.0, 20.0, 300.0
+    bottom = height - 44.0
+    panels = []
+    for inst in INSTANCES:
+        runs = data.trajectories[inst]
+        all_points = [point for method in (MSLS, ILS) for run in runs[method] for point in run]
+        t_first = min(point[0] for point in all_points)
+        t_last = max(point[0] for point in all_points)
+        x_low = max([tick for tick in TICKS_MS if tick <= t_first * 0.95] or [TICKS_MS[0]])
+        x_high = min([tick for tick in TICKS_MS if tick >= t_last * 1.02] or [TICKS_MS[-1]])
+        finals = [run[-1][2] for method in (MSLS, ILS) for run in runs[method]]
+        # The axis ends at the 80th percentile of the first local optima (higher starts enter from the top
+        # edge), but always shows the start of the highlighted run.
+        starts = sorted(run[0][2] for method in (MSLS, ILS) for run in runs[method])
+        upper = max(starts[int(0.8 * (len(starts) - 1))], int(data.snapshots[inst][0]["objective"]))
+        step = nice_step(upper - min(finals))
+        y_low = math.floor((min(finals) - 0.15 * step) / step) * step
+        y_high = math.ceil(upper / step) * step
+
+        def x(t: float) -> float:
+            return left + (right - left) * (math.log10(t) - math.log10(x_low)) / (math.log10(x_high) - math.log10(x_low))
+
+        def y(value: float) -> float:
+            return bottom - (bottom - top) * (value - y_low) / (y_high - y_low)
+
+        clip = f"clip-{inst}"
+        parts = [f'<svg class="figure" viewBox="0 0 {width:.0f} {height:.0f}" role="img" '
+                 f'aria-label="{inst}: objective of the best solution found so far against time, MSLS and ILS">',
+                 f'<defs><clipPath id="{clip}"><rect x="{left}" y="{top - 6}" width="{right - left + 4}" '
+                 f'height="{bottom - top + 6}"/></clipPath></defs>',
+                 f'<text x="0" y="12" class="panel">{inst}</text>']
+        value = y_low
+        while value <= y_high + 1e-9:
+            parts.append(f'<line x1="{left}" y1="{y(value):.1f}" x2="{right}" y2="{y(value):.1f}" stroke="#e1e0d9" '
+                         f'stroke-width="1"/><text x="{left - 8}" y="{y(value) + 3.5:.1f}" text-anchor="end" '
+                         f'class="tick">{num(value)}</text>')
+            value += step
+        for tick in TICKS_MS:
+            if x_low <= tick <= x_high:
+                parts.append(f'<line x1="{x(tick):.1f}" y1="{top}" x2="{x(tick):.1f}" y2="{bottom}" stroke="#e1e0d9" '
+                             f'stroke-width="1"/><text x="{x(tick):.1f}" y="{bottom + 14:.1f}" text-anchor="middle" '
+                             f'class="tick">{tick:g}</text>')
+        parts.append(f'<line x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" stroke="#c3c2b7" stroke-width="1"/>')
+        parts.append(f'<text x="{(left + right) / 2:.1f}" y="{bottom + 32:.1f}" text-anchor="middle" class="axis">'
+                     f'time since the start of the run [ms], logarithmic scale</text>')
+        parts.append(f'<text transform="translate(12 {(top + bottom) / 2:.1f}) rotate(-90)" text-anchor="middle" '
+                     f'class="axis">best objective so far</text>')
+        limit = float(data.times[inst][ILS]["time_limit_ms"])
+        parts.append(f'<line x1="{x(limit):.1f}" y1="{top}" x2="{x(limit):.1f}" y2="{bottom}" stroke="#7d7c76" '
+                     f'stroke-width="1"/><text x="{x(limit) - 4:.1f}" y="{top + 10:.1f}" text-anchor="end" '
+                     f'class="tick">time limit {ms(limit)} ms</text>')
+        parts.append(f'<g clip-path="url(#{clip})" fill="none" stroke-linejoin="round" stroke-linecap="round">')
+        for method in (MSLS, ILS):
+            for run in runs[method]:
+                parts.append(f'<path d="{step_path([(p[0], p[2]) for p in run], x, y)}" stroke="{SERIES_COLOR[method]}" '
+                             f'stroke-width="1" stroke-opacity="0.3"/>')
+        times = sorted({point[0] for point in all_points})
+        medians = {}
+        for method in (MSLS, ILS):
+            end = max(run[-1][0] for run in runs[method])  # a median ends with the last run of its method
+            method_times = [t for t in times if t <= end]
+            values = median_at(runs[method], method_times)
+            curve = [(t, v) for t, v in zip(method_times, values) if math.isfinite(v)]
+            medians[method] = curve
+            parts.append(f'<path d="{step_path(curve, x, y)}" stroke="{SERIES_COLOR[method]}" stroke-width="2.2"/>')
+        best_run = int(data.snapshots[inst][0]["run"])
+        best = runs[ILS][best_run]
+        parts.append(f'<path d="{step_path([(p[0], p[2]) for p in best], x, y)}" stroke="{INK}" stroke-width="1.4"/>')
+        parts.append("</g>")
+        for row in data.snapshots[inst]:
+            cx, cy = x(float(row["ms"])), y(float(row["objective"]))
+            parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6.5" fill="{INK}" stroke="#ffffff" stroke-width="2"/>'
+                         f'<text x="{cx:.1f}" y="{cy + 3.2:.1f}" text-anchor="middle" class="marker">{row["snapshot"]}</text>')
+        for method in (MSLS, ILS):
+            final_t, final_v = medians[method][-1]
+            parts.append(f'<line x1="{x(final_t) + 3:.1f}" y1="{y(final_v):.1f}" x2="{right + 8:.1f}" y2="{y(final_v):.1f}" '
+                         f'stroke="#c3c2b7" stroke-width="1"/><text x="{right + 11:.1f}" y="{y(final_v) + 3.5:.1f}" '
+                         f'class="value">median {num(final_v)}</text>')
+        parts.append("</svg>")
+        panels.append("".join(parts))
+
+    def key(color: str, thin: bool) -> str:
+        return (f'<svg width="22" height="10" viewBox="0 0 22 10"><line x1="1" y1="5" x2="21" y2="5" stroke="{color}" '
+                f'stroke-width="{1 if thin else 2.2}" stroke-opacity="{0.45 if thin else 1}"/></svg>')
+
+    legend = "".join(f'<span class="key">{key(SERIES_COLOR[m], True)}{key(SERIES_COLOR[m], False)}'
+                     f'{"MSLS" if m == MSLS else "ILS"}: each run, median</span>' for m in (MSLS, ILS))
+    legend += (f'<span class="key"><svg width="30" height="14" viewBox="0 0 30 14"><line x1="1" y1="7" x2="29" y2="7" '
+               f'stroke="{INK}" stroke-width="1.4"/><circle cx="15" cy="7" r="5.5" fill="{INK}" stroke="#ffffff" '
+               f'stroke-width="1.5"/></svg>the run that found the best ILS solution, points 1–4 of Figure 3</span>')
+    return f'<div class="legend">{legend}</div>{"".join(panels)}'
+
+
+def snapshot_cards(data: Data, inst: str) -> str:
+    """The program's plots of the solution of the best ILS run at the snapshot points."""
+    rows = data.snapshots[inst]
+    cards = []
+    for index, row in enumerate(rows):
+        if index == 0:
+            what = "first local optimum"
+        elif index == len(rows) - 1:
+            what = "final = best ILS solution"
+        else:
+            what = "accepted solution"
+        point = row["snapshot"]
+        searches = int(row["local_searches"])
+        plural = "es" if searches != 1 else ""
+        plot = embedded_plot(inst, "ils_trajectory_" + point, "ILS trajectory, point " + point)
+        cards.append(f'<div class="card"><div class="cardhead"><b>{point}</b> · {what}</div>'
+                     f'<div class="status">f = {num(float(row["objective"]))} · {ms(row["ms"], 1)} ms<br>'
+                     f'after {num(searches)} local search{plural}</div>{plot}</div>')
+    return f'<div class="cards4">{"".join(cards)}</div>'
+
+
 # --------------------------------------------------------------------------------- pages
 
 class Report:
@@ -363,6 +551,7 @@ PSEUDOCODE_1 = """<span class="c">Notation</span>
   n nodes, m = ⌈n/2⌉ selected; d(u, v) distance matrix; c(v) node cost; f objective
   S[0..m−1]  cycle of the selected nodes (positions modulo m)
   LOCAL-SEARCH(S)  steepest local search with the list of moves (LM) of assignment 5, Section 3.1
+  RECORD(S)        append (elapsed time, number of local searches so far, f(S)) to the trajectory of the run
 
 <b>RANDOM-SOLUTION</b>()
   P <- random permutation of {0, ..., n−1}             <span class="c">// std::shuffle, mt19937</span>
@@ -372,14 +561,14 @@ PSEUDOCODE_1 = """<span class="c">Notation</span>
   best <- none
   repeat 400 times
     S <- LOCAL-SEARCH(RANDOM-SOLUTION())
-    if best = none or f(S) < f(best): best <- S
+    if best = none or f(S) < f(best): best <- S;  RECORD(best)
   return best
 
 <b>ILS</b>(T)                                  <span class="c">// T = average running time of MSLS on the instance</span>
-  x <- LOCAL-SEARCH(RANDOM-SOLUTION())
+  x <- LOCAL-SEARCH(RANDOM-SOLUTION());  RECORD(x)
   while the elapsed time < T:
     y <- LOCAL-SEARCH(PERTURB(x))
-    if f(y) < f(x): x <- y                               <span class="c">// accept only a better local optimum</span>
+    if f(y) < f(x): x <- y;  RECORD(x)                   <span class="c">// accept only a better local optimum</span>
   return x
 
 <b>PERTURB</b>(x)                                      <span class="c">// returns a perturbed copy y of x</span>
@@ -472,8 +661,8 @@ were not selected, in the order of drawing. The replaced nodes cannot come back 
 search may later bring them back with exchanges.</li>
 </ol>
 <p>Both steps are applied once in every iteration, the double bridge first. The parameters (one double bridge,
-a segment of four nodes) were chosen in a comparison of perturbations (Table 4). The new local optimum is accepted
-only if it is strictly better than the current solution.</p>
+a segment of four nodes) were chosen in preliminary tests; Table 4 compares this perturbation with six other
+variants. The new local optimum is accepted only if it is strictly better than the current solution.</p>
 <h2>3. Algorithms (pseudocode)</h2>
 <pre class="code">{PSEUDOCODE_1}</pre>""")
     report.page(f"""
@@ -500,6 +689,10 @@ iteration (perturbation and local search) took about {ms(per_search['TSPA'], 3)}
 search from a random solution.</li>
 <li><b>Time limit of ILS.</b> The limit is checked before every iteration; the time of an ILS run includes its first
 local search from the random solution.</li>
+<li><b>Trajectory.</b> RECORD stores the time since the start of the run, the number of local searches and the
+objective; it is called only when the best solution of the run improves (a few to a few dozen times per run), so its
+cost is negligible next to the local searches. For the run that found the best ILS solution the program also saves
+four of the recorded solutions (Section 5.2).</li>
 <li><b>Randomness.</b> Every run of MSLS and of ILS has its own random generator (mt19937, seeded from the seed of
 the experiment, the instance and the run), so the experiment can be repeated; ILS stops after a time, so its results
 can differ slightly between repetitions.</li>
@@ -595,7 +788,7 @@ maximum), and the average number of perturbations whose local optimum was accept
 <tr><th>local searches</th><th class="num">accepted</th><th>local searches</th><th class="num">accepted</th></tr></thead>
 <tbody>{''.join(run_rows)}</tbody></table>
 <h2>5.1 Comparison of perturbations</h2>
-<p>The perturbation of ILS was chosen from the variants in Table 4, each run {RUNS} times per instance with the same
+<p>Table 4 compares the perturbation of ILS with six other variants, each run {RUNS} times per instance with the same
 time limit as ILS. The row "used" is the ILS series of Tables 1–3.</p>
 <table class="results times">
 <caption>Table 4. ILS with different perturbations: objective, average (minimum – maximum), and the average number of
@@ -605,6 +798,61 @@ selected nodes; "10 random moves": each a random 2-opt move or a random exchange
 <tr><th>objective</th><th class="num">local searches</th><th>objective</th><th class="num">local searches</th></tr>
 </thead>
 <tbody>{''.join(perturbation_rows)}</tbody></table>""")
+
+
+def trajectory_pages(report: Report, data: Data) -> None:
+    facts = {i: trajectory_facts(data, i) for i in INSTANCES}
+    rows = []
+    for t in TABLE_TIMES_MS + (None,):
+        if t is not None and any(t >= facts[i]["limit"] for i in INSTANCES):
+            continue
+        cells = []
+        for inst in INSTANCES:
+            runs = data.trajectories[inst]
+            values = {method: (median(run[-1][2] for run in runs[method]) if t is None else
+                               median_at(runs[method], [float(t)])[0]) for method in (MSLS, ILS)}
+            lower = min(values.values())
+            for method in (MSLS, ILS):
+                value = values[method]
+                text = num(value) if math.isfinite(value) else "—"
+                cls = ' class="num best"' if math.isfinite(value) and value == lower and values[MSLS] != values[ILS] else ' class="num"'
+                cells.append(f"<td{cls}>{text}</td>")
+        label = "end of the run" if t is None else f"{t} ms"
+        rows.append(f"<tr><th>{label}</th>{''.join(cells)}</tr>")
+
+    def per_instance(key: str, decimals: int = 1, suffix: str = " ms") -> str:
+        return " and ".join(f"{ms(facts[i][key], decimals)}{suffix} ({i})" for i in INSTANCES)
+
+    report.page(f"""
+<h2>5.2 Trajectory of the best solution</h2>
+<p>Every run of MSLS and ILS records the trajectory of its best solution (RECORD in Section 3): the first local
+optimum and every later improvement — for MSLS a local optimum better than all found before it in the run, for ILS
+every accepted solution — with the time since the start of the run and the number of local searches done so far.
+Figure 2 shows the objective of the best solution found so far in all {RUNS} runs of each method, on a logarithmic
+time axis, together with the median over the runs; Table 5 gives the medians at selected times. The median ILS
+solution is better than the median MSLS solution from {per_instance("ahead")} on, and it reaches the final median of
+MSLS after only {per_instance("reach")}.</p>
+<div class="tablehead">Figure 2. Objective of the best solution found so far against the time since the start of the
+run</div>
+{trajectory_figure(data)}""")
+    report.page(f"""
+<table class="results times">
+<caption>Table 5. Median over the {RUNS} runs of the objective of the best solution found so far, at selected times
+since the start of the run; the lower value of the two methods in bold</caption>
+<thead><tr><th rowspan="2">Time</th><th colspan="2">TSPA</th><th colspan="2">TSPB</th></tr>
+<tr><th class="num">MSLS</th><th class="num">ILS</th><th class="num">MSLS</th><th class="num">ILS</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table>
+<div class="tablehead">Figure 3. The solution of the run that found the best ILS solution at the points 1–4 of
+Figure 2, as plotted by the program</div>
+<p>The points are the first local optimum of the run, the first accepted solutions that closed at least half and at
+least 90 % of the gap between it and the final objective, and the final solution (the best ILS solution of
+Section 6). Every one of them is a local optimum of the local search.</p>
+{plot_legend(data.nodes[INSTANCES[0]])}
+<div class="rowtitle">TSPA</div>
+{snapshot_cards(data, "TSPA")}
+{plot_legend(data.nodes[INSTANCES[1]])}
+<div class="rowtitle">TSPB</div>
+{snapshot_cards(data, "TSPB")}""")
 
 
 def best_solution_pages(report: Report, data: Data) -> list[str]:
@@ -664,6 +912,21 @@ def conclusions_page(report: Report, data: Data, problems: list[str]) -> None:
            f"{num(ils_runs['TSPB'])} local searches of a run "
            f"({100 * accepted['TSPA'] / ils_runs['TSPA']:.1f} % / {100 * accepted['TSPB'] / ils_runs['TSPB']:.1f} %) "
            f"found a better local optimum, but each of them is cheap.")
+    facts = {i: trajectory_facts(data, i) for i in INSTANCES}
+
+    def both(key: str, fmt) -> str:
+        return " / ".join(fmt(facts[i][key]) for i in INSTANCES)
+
+    reached = all(math.isfinite(facts[i]["reach"]) for i in INSTANCES)
+    trajectory = (f"<b>ILS overtakes MSLS almost at once (Figure 2).</b> Its median best solution is better than that of "
+                  f"MSLS from {both('ahead', ms)} ms (TSPA / TSPB) on"
+                  + (f", and it reaches the final median of MSLS ({both('msls_final', num)}) after "
+                     f"{both('reach', ms)} ms, i.e. in "
+                     + " / ".join(f"{100 * facts[i]['reach'] / facts[i]['limit']:.0f} %" for i in INSTANCES)
+                     + " of the time limit" if reached else "")
+                  + f". Then ILS keeps improving in ever smaller steps (half of the runs still accepted a better solution "
+                  f"after {both('last_improvement', ms)} ms), whereas MSLS improved its best solution only "
+                  f"{both('msls_improvements', lambda v: f'{v:.1f}')} times per run.")
     msls_text = (f"<b>MSLS improves on a single local search,</b> from an average of {num(single['TSPA'], 2)} to "
                  f"{num(msls_avg['TSPA'], 2)} on TSPA and from {num(single['TSPB'], 2)} to {num(msls_avg['TSPB'], 2)} on "
                  f"TSPB, but the best of {MSLS_ITERATIONS} random starts is limited by the quality of single local "
@@ -700,7 +963,7 @@ def conclusions_page(report: Report, data: Data, problems: list[str]) -> None:
                "and formulas, applied to the node lists): every one is a valid solution and the checker objective equals "
                "the reported one." if not problems else
                "The solution checker reported problems: " + "; ".join(esc(p) for p in problems) + ".")
-    items = [first, why, msls_text, constructive, components, strength, checked]
+    items = [first, trajectory, why, msls_text, constructive, components, strength, checked]
     report.page('<h2>7. Conclusions</h2><ul class="conclusions">' + "".join(f"<li>{item}</li>" for item in items) +
                 f'</ul><h2>8. Source code</h2><p>The complete source code, the evaluation files and this report '
                 f'generator are available at <a href="{REPOSITORY_URL}">{esc(REPOSITORY_URL)}</a>. Build with CMake '
@@ -756,6 +1019,12 @@ svg.figure text.tick { font-size: 9.5px; fill: #52514e; }
 svg.figure text.row { font-size: 10.5px; font-weight: 600; }
 svg.figure text.panel { font-size: 11px; font-weight: 650; }
 svg.figure text.value { font-size: 9.5px; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+svg.figure text.axis { font-size: 9.5px; fill: #52514e; }
+svg.figure text.marker { font-size: 8px; font-weight: 700; fill: #ffffff; }
+.cards4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm 3.5mm; margin-bottom: 2mm; }
+.cards4 .cardhead { font-size: 8pt; }
+.cards4 .status { font-size: 7.3pt; }
+.rowtitle { font-weight: 650; font-size: 10pt; margin: 2mm 0 1mm; }
 .legend { font-size: 8.2pt; margin: 0 0 3mm; display: flex; flex-wrap: wrap; align-items: center; gap: 1mm 3.5mm; }
 .legend .key { display: inline-flex; align-items: center; gap: 1mm; }
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm 6mm; }
@@ -793,6 +1062,7 @@ def build_html() -> tuple[str, list[str]]:
     first_page(report, data)
     algorithm_pages(report, data)
     results_pages(report, data)
+    trajectory_pages(report, data)
     problems = best_solution_pages(report, data)
     conclusions_page(report, data, problems)
     document = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lab 06 — MSLS and ILS</title>'

@@ -22,10 +22,14 @@ With `--perturbation-experiment`, ILS is also run 20 times per instance with six
 
 | Instance | MSLS: average (min - max) | ILS: average (min - max) | Local searches per ILS run |
 | -------- | ------------------------- | ------------------------ | -------------------------- |
-| TSPA     | 73,584.35 (73,079 - 73,986) | 71,587.85 (71,484 - 71,960) | 3,746.85 (3,403 - 3,951) |
-| TSPB     | 50,086.90 (49,495 - 50,557) | 48,251.05 (48,150 - 48,564) | 3,667.65 (3,052 - 3,964) |
+| TSPA     | 73,584.35 (73,079 - 73,986) | 71,594.50 (71,484 - 71,960) | 3,681.95 (3,563 - 3,811) |
+| TSPB     | 50,086.90 (49,495 - 50,557) | 48,250.10 (48,150 - 48,564) | 3,644.55 (2,439 - 3,810) |
 
-The time limit of ILS was 152.9 ms (TSPA) and 158.9 ms (TSPB). Every ILS run was better than the best MSLS run on both instances. ILS performs about 9x as many local searches as MSLS (400) in the same time, because a local search from a perturbed local optimum needs only a few moves.
+The time limit of ILS was 147.2 ms (TSPA) and 148.4 ms (TSPB). Every ILS run was better than the best MSLS run on both instances. ILS performs about 9x as many local searches as MSLS (400) in the same time, because a local search from a perturbed local optimum needs only a few moves.
+
+## Trajectory of the best solution
+
+Every run records the trajectory of its best solution: the time since the start of the run, the number of local searches so far and the objective, at the first local optimum and at every improvement (MSLS: a local optimum better than all before it in the run; ILS: every accepted solution). The report plots the best objective found so far against time for all runs of both methods with their medians (logarithmic time axis), tabulates the medians at selected times, and shows the solution of the run that found the best ILS solution at four points of its trajectory: its first local optimum, the first accepted solutions that closed at least half and at least 90% of the gap to its final objective, and the final solution. The median ILS solution reaches the final median of MSLS after less than 2 ms on both instances.
 
 ## Evaluation
 
@@ -41,8 +45,10 @@ The evaluation stores:
   perturbation,label,double_bridges,segment_length,random_moves,min,max,avg,sd,ls_runs_average,ls_runs_minimum,ls_runs_maximum
   ```
 
-* `results/` - best and worst closed routes of MSLS and ILS;
-* `plots/` - SVG visualisations of the best and worst routes (used by the report).
+* `{TSPA,TSPB}_trajectory.csv` - `method_name,run,event,ms,local_searches,objective`: the trajectory of the best solution of every run of MSLS and ILS; `event` is `start` (the first local optimum), `improvement` or `end` (the end of the run, with its final objective);
+* `{TSPA,TSPB}_trajectory_snapshots.csv` - `snapshot,run,point,ms,local_searches,objective`: the four points of the trajectory of the run that found the best ILS solution whose solutions are saved (`point` indexes the run's trajectory);
+* `results/` - best and worst closed routes of MSLS and ILS, and `{TSPA,TSPB}_ils_trajectory_{1..4}.csv`, the routes at the four snapshot points;
+* `plots/` - SVG visualisations of the best and worst routes and of the four snapshots (used by the report).
 
 Every reported solution is checked: it must be a valid cycle of 100 distinct nodes, its objective is recomputed from scratch, and a run of the steepest local search from it must not find an improving move.
 

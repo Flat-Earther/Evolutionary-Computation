@@ -43,6 +43,7 @@ MslsRun LocalSearchMethods::multipleStart(int iterations, std::mt19937& rng) {
         run.local_optima.push_back(result.total_cost);
         if (iteration == 0 || result.total_cost < run.best.total_cost) {
             run.best = std::move(result);
+            run.trajectory.push_back({millisecondsSince(begin), iteration + 1LL, run.best.total_cost});
         }
     }
     run.ms = millisecondsSince(begin);
@@ -54,6 +55,8 @@ IlsRun LocalSearchMethods::iterated(double time_limit_ms, const Perturbation& pe
     const auto begin = Clock::now();
     Result current = local_search_.run(solver_.randomStartingSolution(rng), MoveListVariant::NewMoves);
     run.local_searches = 1;
+    run.trajectory.push_back({millisecondsSince(begin), 1, current.total_cost});
+    run.trajectory_routes.push_back(current.route);
     std::vector<int> route;
     while (millisecondsSince(begin) < time_limit_ms) {
         route.assign(current.route.begin(), current.route.end() - 1);
@@ -63,6 +66,8 @@ IlsRun LocalSearchMethods::iterated(double time_limit_ms, const Perturbation& pe
         if (candidate.total_cost < current.total_cost) {
             current = std::move(candidate);
             ++run.improvements;
+            run.trajectory.push_back({millisecondsSince(begin), run.local_searches, current.total_cost});
+            run.trajectory_routes.push_back(current.route);
         }
     }
     run.best = std::move(current);

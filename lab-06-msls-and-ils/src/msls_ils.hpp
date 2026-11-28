@@ -23,12 +23,21 @@ struct Perturbation {
     int random_moves = 0;
 };
 
+// A point of the trajectory of the best solution of a run: the time since the start of the run, the
+// number of local searches performed so far and the objective of the best solution at that moment.
+struct TrajectoryPoint {
+    double ms = 0;
+    long long local_searches = 0;
+    int objective = 0;
+};
+
 // One run of multiple start local search.
 struct MslsRun {
     Result best;
     double ms = 0;
     std::vector<int> local_optima;        // objective of every local-search run
     std::vector<double> local_search_ms;  // time of every local-search run (with its random start)
+    std::vector<TrajectoryPoint> trajectory;  // the first local optimum and every later improvement of the best
 };
 
 // One run of iterated local search.
@@ -37,6 +46,8 @@ struct IlsRun {
     double ms = 0;
     long long local_searches = 0;  // runs of the basic local search, the first one included
     long long improvements = 0;    // perturbations whose local optimum was accepted
+    std::vector<TrajectoryPoint> trajectory;          // the first local optimum and every accepted solution
+    std::vector<std::vector<int>> trajectory_routes;  // the solution (closed route) at every trajectory point
 };
 
 // MSLS and ILS around the steepest local search (2-opt and exchange of a selected and a not

@@ -130,7 +130,31 @@ struct IlsSeries {
     std::vector<double> ms;
     std::vector<double> local_searches;
     std::vector<double> improvements;
+    std::vector<IlsRun> runs;
 };
+
+// Points of a trajectory shown as snapshots: the first local optimum, the first solutions that closed
+// at least half and at least 90% of the gap between it and the final solution, and the final solution.
+std::vector<std::size_t> snapshotPoints(const std::vector<TrajectoryPoint>& points) {
+    std::vector<std::size_t> chosen{0};
+    const double first = points.front().objective;
+    const double last = points.back().objective;
+    for (const double fraction : {0.5, 0.9}) {
+        const double target = first - fraction * (first - last);
+        for (std::size_t index = 0; index < points.size(); ++index) {
+            if (points[index].objective <= target) {
+                if (index != chosen.back()) {
+                    chosen.push_back(index);
+                }
+                break;
+            }
+        }
+    }
+    if (chosen.back() != points.size() - 1) {
+        chosen.push_back(points.size() - 1);
+    }
+    return chosen;
+}
 
 IlsSeries runIls(LocalSearchMethods& methods, const TSPSolver& solver, const Perturbation& perturbation,
                  double time_limit_ms, unsigned int seed, unsigned int instance_code, unsigned int stream,
@@ -145,6 +169,7 @@ IlsSeries runIls(LocalSearchMethods& methods, const TSPSolver& solver, const Per
         series.ms.push_back(result.ms);
         series.local_searches.push_back(static_cast<double>(result.local_searches));
         series.improvements.push_back(static_cast<double>(result.improvements));
+        series.runs.push_back(result);
     }
     return series;
 }
@@ -169,12 +194,14 @@ void runInstance(const std::string& instance_name, const Options& options, const
     std::vector<double> msls_ms;
     std::vector<double> local_optima;
     std::vector<double> local_search_ms;
+    std::vector<std::vector<TrajectoryPoint>> msls_trajectories;
     for (int run = 0; run < kRuns; ++run) {
         std::mt19937 rng = makeRng(options.seed, instance_code, 1, run);
         const MslsRun result = methods.multipleStart(kMslsIterations, rng);
         checkResult(result.best, solver, node_count, "MSLS");
         msls_space.addSolution(result.best);
         msls_ms.push_back(result.ms);
+        msls_trajectories.push_back(result.trajectory);
         local_optima.insert(local_optima.end(), result.local_optima.begin(), result.local_optima.end());
         local_search_ms.insert(local_search_ms.end(), result.local_search_ms.begin(), result.local_search_ms.end());
     }
@@ -253,6 +280,54 @@ void runInstance(const std::string& instance_name, const Options& options, const
     };
     write_solutions(msls_space, "msls", "MSLS");
     write_solutions(ils.space, "ils", "ILS");
+
+    // Trajectory of the best solution of every run: the first local optimum, every improvement (MSLS: of
+    // the best local optimum found so far; ILS: every accepted solution) and the end of the run.
+    std::ofstream trajectory_out = openOutput(evaluation_dir / (instance_name + "_trajectory.csv"));
+    trajectory_out << "method_name,run,event,ms,local_searches,objective\n" << std::fixed << std::setprecision(4);
+    const auto write_trajectory = [&](const std::string& method, int run, const std::vector<TrajectoryPoint>& points,
+                                      double end_ms, long long end_local_searches) {
+        for (std::size_t index = 0; index < points.size(); ++index) {
+            trajectory_out << method << ',' << run << ',' << (index == 0 ? "start" : "improvement") << ','
+                           << points[index].ms << ',' << points[index].local_searches << ','
+                           << points[index].objective << '\n';
+        }
+        trajectory_out << method << ',' << run << ",end," << end_ms << ',' << end_local_searches << ','
+                       << points.back().objective << '\n';
+    };
+    for (int run = 0; run < kRuns; ++run) {
+        const std::size_t index = static_cast<std::size_t>(run);
+        write_trajectory("msls", run, msls_trajectories[index], msls_ms[index], kMslsIterations);
+    }
+    for (int run = 0; run < kRuns; ++run) {
+        const IlsRun& result = ils.runs[static_cast<std::size_t>(run)];
+        write_trajectory("ils", run, result.trajectory, result.ms, result.local_searches);
+    }
+
+    // Snapshots of the trajectory of the run that found the best ILS solution.
+    std::size_t best_run = 0;
+    for (std::size_t run = 1; run < ils.runs.size(); ++run) {
+        if (ils.runs[run].best.total_cost < ils.runs[best_run].best.total_cost) {
+            best_run = run;
+        }
+    }
+    const IlsRun& best = ils.runs[best_run];
+    std::ofstream snapshots_out = openOutput(evaluation_dir / (instance_name + "_trajectory_snapshots.csv"));
+    snapshots_out << "snapshot,run,point,ms,local_searches,objective\n" << std::fixed << std::setprecision(4);
+    const std::vector<std::size_t> chosen = snapshotPoints(best.trajectory);
+    for (std::size_t snapshot = 0; snapshot < chosen.size(); ++snapshot) {
+        const TrajectoryPoint& point = best.trajectory[chosen[snapshot]];
+        const Result solution{best.trajectory_routes[chosen[snapshot]], point.objective};
+        checkResult(solution, solver, node_count, "ILS trajectory");
+        SolutionSpace space;
+        space.addSolution(solution);
+        const std::string id = "ils_trajectory_" + std::to_string(snapshot + 1);
+        space.writeBestSolutionCsv((results_dir / (instance_name + "_" + id + ".csv")).string());
+        space.writeSvg((plots_dir / (instance_name + "_" + id + ".svg")).string(), nodes,
+                       instance_name + " ILS trajectory, snapshot " + std::to_string(snapshot + 1));
+        snapshots_out << snapshot + 1 << ',' << best_run << ',' << chosen[snapshot] << ',' << point.ms << ','
+                      << point.local_searches << ',' << point.objective << '\n';
+    }
 
     if (!options.perturbation_experiment) {
         return;
