@@ -1,0 +1,4 @@
+method_name,average_ms,minimum_ms,maximum_ms,time_limit_ms
+local_search,0.3972,0.2807,4.9322,
+msls,158.9351,145.6167,190.1402,
+ils,158.9586,158.9366,158.9881,158.9351

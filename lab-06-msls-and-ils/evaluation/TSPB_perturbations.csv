@@ -1,0 +1,8 @@
+perturbation,label,double_bridges,segment_length,random_moves,min,max,avg,sd,ls_runs_average,ls_runs_minimum,ls_runs_maximum
+db1,Double bridge,1,0,0,48152.00,49750.00,48458.20,335.18,6617.35,5098.00,7455.00
+seg4,Segment of 4,0,4,0,48174.00,48950.00,48342.00,182.90,4533.10,2634.00,5081.00
+random10,10 random moves,0,0,10,48149.00,48513.00,48281.50,116.01,3161.00,2718.00,3384.00
+db1_seg2,Double bridge + segment of 2,1,2,0,48150.00,48598.00,48224.75,121.08,4859.95,3200.00,5159.00
+db1_seg4,Double bridge + segment of 4,1,4,0,48150.00,48564.00,48251.05,126.79,3667.65,3052.00,3964.00
+db1_seg8,Double bridge + segment of 8,1,8,0,48191.00,48776.00,48351.50,147.74,2646.25,2439.00,2793.00
+db2_seg4,2 double bridges + segment of 4,2,4,0,48165.00,48631.00,48316.10,162.23,3230.35,2764.00,3481.00
