@@ -50,7 +50,7 @@ PREVIOUS = (
     ("lab-02,5-greedy-regret-heuristics-the-other-way", "weighted_path_reversed",
      "Greedy weighted 2-regret, path, reversed traversal (assignment 2.5)"),
     ("lab-03-local-search", "greedy_steepest_2opt",
-     "Steepest local search from the best greedy solution (assignment 3)"),
+     "Steepest local search from greedy solutions (assignment 3)"),
 )
 SINGLE, MSLS, ILS = "local_search", "msls", "ils"
 LABELS = {
@@ -230,25 +230,23 @@ def nice_step(span: float) -> float:
 def beeswarm(xs: list[float], radius: float) -> list[tuple[float, int]]:
     """Places dots on one row: every dot gets the level closest to the row line (0, -1, 1, -2, ...)
     at which it does not overlap a dot placed before it."""
+    level_order = [0]
+    for step in range(1, len(xs) + 1):
+        level_order += [-step, step]
     placed: list[tuple[float, int]] = []
-    result = []
     for x in xs:
-        level_order = [0]
-        for step in range(1, 12):
-            level_order += [-step, step]
         for level in level_order:
             if all(abs(x - px) >= 2 * radius + 1 or level != pl for px, pl in placed):
                 placed.append((x, level))
-                result.append((x, level))
                 break
-    return result
+    return placed
 
 
 def runs_figure(data: Data) -> str:
     """Objective of the 20 runs of MSLS and ILS, one panel per instance on its own axis; every dot
     is one run, the vertical tick is the average."""
     width, left, right = 670.0, 70.0, 640.0
-    radius, row_gap, level_gap = 4.0, 34.0, 8.5
+    radius, row_gap, level_gap, top = 4.0, 30.0, 8.5, 30.0
     panels = []
     for inst in INSTANCES:
         values = {method: sorted(data.objectives(inst, method)) for method in (MSLS, ILS)}
@@ -261,19 +259,19 @@ def runs_figure(data: Data) -> str:
         def x(value: float) -> float:
             return left + (right - left) * (value - axis_low) / (axis_high - axis_low)
 
+        # Every row is as tall as its stack of dots; the average label of a row sits above it.
         rows = []
-        max_level = 0
+        y = top
         for method in (MSLS, ILS):
             placed = beeswarm([x(v) for v in values[method]], radius)
-            max_level = max(max_level, max(abs(level) for _, level in placed))
-            rows.append((method, placed, sum(values[method]) / len(values[method])))
-        band = 2 * max_level * level_gap + 2 * radius + 10
-        top = 26.0
-        height = top + 2 * band + row_gap + 26
+            band = 2 * max(abs(level) for _, level in placed) * level_gap + 2 * radius + 8
+            rows.append((method, placed, sum(values[method]) / len(values[method]), y + band / 2, band))
+            y += band + row_gap
+        axis_y = y - row_gap + 10
+        height = axis_y + 22
         parts = [f'<svg class="figure" viewBox="0 0 {width:.0f} {height:.0f}" role="img" '
-                 f'aria-label="{inst}: objective of 20 runs of MSLS and ILS">']
+                 f'aria-label="{inst}: objective of {RUNS} runs of MSLS and ILS">']
         parts.append(f'<text x="0" y="14" class="panel">{inst}</text>')
-        axis_y = top + 2 * band + row_gap
         tick = axis_low
         while tick <= axis_high + 1e-9:
             parts.append(f'<line x1="{x(tick):.1f}" y1="{top - 4:.1f}" x2="{x(tick):.1f}" y2="{axis_y:.1f}" '
@@ -283,8 +281,7 @@ def runs_figure(data: Data) -> str:
             tick += step
         parts.append(f'<line x1="{left:.1f}" y1="{axis_y:.1f}" x2="{right:.1f}" y2="{axis_y:.1f}" stroke="#c3c2b7" '
                      f'stroke-width="1"/>')
-        for index, (method, placed, mean) in enumerate(rows):
-            center = top + band / 2 + index * (band + row_gap / 2)
+        for method, placed, mean, center, band in rows:
             parts.append(f'<text x="{left - 12:.1f}" y="{center + 4:.1f}" text-anchor="end" class="row">'
                          f'{"MSLS" if method == MSLS else "ILS"}</text>')
             for px, level in placed:
@@ -301,7 +298,7 @@ def runs_figure(data: Data) -> str:
     legend = "".join(f'<span class="key"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" '
                      f'fill="{SERIES_COLOR[m]}"/></svg>{"MSLS" if m == MSLS else "ILS"}</span>' for m in (MSLS, ILS))
     legend += ('<span class="key"><svg width="12" height="12" viewBox="0 0 12 12"><line x1="6" y1="0" x2="6" y2="12" '
-               'stroke="#0b0b0b" stroke-width="2"/></svg>average of the 20 runs</span>')
+               f'stroke="#0b0b0b" stroke-width="2"/></svg>average of the {RUNS} runs</span>')
     return f'<div class="legend"><span>One dot per run:</span>{legend}</div>{"".join(panels)}'
 
 
@@ -376,23 +373,23 @@ PSEUDOCODE_1 = """<span class="c">Notation</span>
         EXCHANGE(p, v), v not selected: S[p] <- v
             Δ = d(S[p−1], v) + d(v, S[p+1]) + c(v) − d(S[p−1], S[p]) − d(S[p], S[p+1]) − c(S[p])
     if Δ >= 0: return S                                  <span class="c">// local optimum</span>
-    apply move to S"""
+    apply move to S
 
-PSEUDOCODE_2 = """<b>MSLS</b>()                                            <span class="c">// one run</span>
+<b>MSLS</b>()                                               <span class="c">// one run</span>
   best <- none
   repeat 400 times
     S <- LOCAL-SEARCH(RANDOM-SOLUTION())
     if best = none or f(S) < f(best): best <- S
   return best
 
-<b>ILS</b>(T)                                          <span class="c">// T = average running time of MSLS on the instance</span>
+<b>ILS</b>(T)                                  <span class="c">// T = average running time of MSLS on the instance</span>
   x <- LOCAL-SEARCH(RANDOM-SOLUTION())
   while the elapsed time < T:
     y <- LOCAL-SEARCH(PERTURB(x))
-    if f(y) < f(x): x <- y                           <span class="c">// accept only a better local optimum</span>
-  return x
+    if f(y) < f(x): x <- y                               <span class="c">// accept only a better local optimum</span>
+  return x"""
 
-<b>PERTURB</b>(x)                                      <span class="c">// returns a perturbed copy y of x</span>
+PSEUDOCODE_2 = """<b>PERTURB</b>(x)                                      <span class="c">// returns a perturbed copy y of x</span>
   y <- copy of x
   <span class="c">// double bridge</span>
   draw i, j, k uniformly from {1, ..., m−1} until they are distinct; sort them so that i < j < k
@@ -465,7 +462,7 @@ perturbations and the same time limit (Table 4).</li>
 </ul>""")
 
 
-def results_page(report: Report, data: Data) -> None:
+def results_pages(report: Report, data: Data) -> None:
     methods = [method for _, method, _ in PREVIOUS] + [SINGLE, MSLS, ILS]
     labels = {method: label for _, method, label in PREVIOUS} | LABELS
     best_avg = {i: min(data.avg(i, m) for m in methods) for i in INSTANCES}
@@ -507,6 +504,22 @@ def results_page(report: Report, data: Data) -> None:
 are results of earlier assignments; MSLS and ILS: {RUNS} runs each</caption>
 <thead><tr><th>Method</th><th>TSPA</th><th>TSPB</th></tr></thead>
 <tbody>{''.join(score_rows)}</tbody></table>
+<div class="tablehead">Figure 1. Objective of the {RUNS} runs of MSLS and of ILS on each instance</div>
+{runs_figure(data)}""")
+
+    order = [row["perturbation"] for row in data.perturbations[INSTANCES[0]]]
+    best = {i: min(float(r["avg"]) for r in data.perturbations[i]) for i in INSTANCES}
+    perturbation_rows = []
+    for perturbation_id in order:
+        first = data.perturbation(INSTANCES[0], perturbation_id)
+        label = first["label"] + (" (used)" if perturbation_id == CHOSEN else "")
+        cells = []
+        for inst in INSTANCES:
+            row = data.perturbation(inst, perturbation_id)
+            cls = ' class="best"' if float(row["avg"]) == best[inst] else ""
+            cells.append(f'<td{cls}>{objective_cell(row)}</td><td class="num">{num(float(row["ls_runs_average"]))}</td>')
+        perturbation_rows.append(f"<tr><th>{esc(label)}</th>{''.join(cells)}</tr>")
+    report.page(f"""
 <table class="results times">
 <caption>Table 2. Running time of one run in ms: average (minimum – maximum). One run of the basic local search
 includes the generation of its random solution; the time limit of ILS was {limits}</caption>
@@ -516,35 +529,19 @@ includes the generation of its random solution; the time limit of ILS was {limit
 <caption>Table 3. Number of runs of the basic local search in one run: average (minimum – maximum), and the average
 number of perturbations whose local optimum was accepted (ILS)</caption>
 <thead><tr><th rowspan="2">Method</th><th colspan="2">TSPA</th><th colspan="2">TSPB</th></tr>
-<tr><th>local searches</th><th>accepted</th><th>local searches</th><th>accepted</th></tr></thead>
-<tbody>{''.join(run_rows)}</tbody></table>""")
-
-
-def perturbation_page(report: Report, data: Data) -> None:
-    order = [row["perturbation"] for row in data.perturbations[INSTANCES[0]]]
-    best = {i: min(float(r["avg"]) for r in data.perturbations[i]) for i in INSTANCES}
-    rows = []
-    for perturbation_id in order:
-        first = data.perturbation(INSTANCES[0], perturbation_id)
-        label = first["label"] + (" (used)" if perturbation_id == CHOSEN else "")
-        cells = []
-        for inst in INSTANCES:
-            row = data.perturbation(inst, perturbation_id)
-            cls = ' class="best"' if float(row["avg"]) == best[inst] else ""
-            cells.append(f'<td{cls}>{objective_cell(row)}</td><td class="num">{num(float(row["ls_runs_average"]))}</td>')
-        rows.append(f"<tr><th>{esc(label)}</th>{''.join(cells)}</tr>")
-    report.page(f"""
-<div class="tablehead">Figure 1. Objective of the {RUNS} runs of MSLS and of ILS on each instance (one dot per run;
-the vertical line is the average)</div>
-{runs_figure(data)}
-<table class="results times perturbations">
-<caption>Table 4. ILS with different perturbations ({RUNS} runs each, the same time limit): objective, average
-(minimum – maximum), and the average number of local searches per run; the lowest average in bold. "Segment of k":
-k consecutive nodes replaced by random not selected nodes; "10 random moves": each a random 2-opt move or a random
-exchange</caption>
+<tr><th>local searches</th><th class="num">accepted</th><th>local searches</th><th class="num">accepted</th></tr></thead>
+<tbody>{''.join(run_rows)}</tbody></table>
+<h2>5.1 Comparison of perturbations</h2>
+<p>The perturbation of ILS was chosen from the variants in Table 4, each run {RUNS} times per instance with the same
+time limit as ILS. The row "used" is the ILS series of Tables 1–3.</p>
+<table class="results times">
+<caption>Table 4. ILS with different perturbations: objective, average (minimum – maximum), and the average number of
+local searches per run; the lowest average in bold. "Segment of k": k consecutive nodes replaced by random not
+selected nodes; "10 random moves": each a random 2-opt move or a random exchange</caption>
 <thead><tr><th rowspan="2">Perturbation</th><th colspan="2">TSPA</th><th colspan="2">TSPB</th></tr>
-<tr><th>objective</th><th>local searches</th><th>objective</th><th>local searches</th></tr></thead>
-<tbody>{''.join(rows)}</tbody></table>""")
+<tr><th>objective</th><th class="num">local searches</th><th>objective</th><th class="num">local searches</th></tr>
+</thead>
+<tbody>{''.join(perturbation_rows)}</tbody></table>""")
 
 
 def best_solution_pages(report: Report, data: Data) -> list[str]:
@@ -594,41 +591,48 @@ def conclusions_page(report: Report, data: Data, problems: list[str]) -> None:
              + (f"; even the worst ILS run ({num(data.value('TSPA', ILS, 'max'))} / {num(data.value('TSPB', ILS, 'max'))}) "
                 f"was better than the best MSLS run ({num(data.value('TSPA', MSLS, 'min'))} / "
                 f"{num(data.value('TSPB', MSLS, 'min'))}, TSPA / TSPB, Figure 1)." if separated else "."))
-    why = (f"<b>ILS spends its time near good solutions.</b> It performed {ls_ratio['TSPA']:.1f}× (TSPA) and "
-           f"{ls_ratio['TSPB']:.1f}× (TSPB) more local searches than MSLS in the same time: a local search from a "
+    ils_runs = {i: float(data.ls_runs[i][ILS]["average"]) for i in INSTANCES}
+    why = (f"<b>ILS spends its time near good solutions.</b> It performed about {ls_ratio['TSPA']:.1f}× (TSPA) and "
+           f"{ls_ratio['TSPB']:.1f}× (TSPB) as many local searches as MSLS in the same time: a local search from a "
            f"perturbed local optimum needs only a few moves, while each local search of MSLS starts from a random "
            f"solution and has to improve it completely. Every local search of ILS also starts close to the best "
-           f"solution found so far, whereas MSLS samples local optima independently of each other.")
+           f"solution found so far, whereas MSLS samples local optima independently of each other. Only about "
+           f"{accepted['TSPA']:.0f} (TSPA) and {accepted['TSPB']:.0f} (TSPB) of the {num(ils_runs['TSPA'])} / "
+           f"{num(ils_runs['TSPB'])} local searches of a run "
+           f"({100 * accepted['TSPA'] / ils_runs['TSPA']:.1f} % / {100 * accepted['TSPB'] / ils_runs['TSPB']:.1f} %) "
+           f"found a better local optimum, but each of them is cheap.")
     msls_text = (f"<b>MSLS improves on a single local search,</b> from an average of {num(single['TSPA'], 2)} to "
                  f"{num(msls_avg['TSPA'], 2)} on TSPA and from {num(single['TSPB'], 2)} to {num(msls_avg['TSPB'], 2)} on "
                  f"TSPB, but the best of {MSLS_ITERATIONS} random starts is limited by the quality of single local "
                  f"optima: "
                  + ("on TSPA it was " + ("better" if msls_vs_greedy["TSPA"] else "worse") + " than the local search from "
-                    f"the best greedy solution of assignment 3 ({num(data.avg('TSPA', greedy_ls), 2)}), on TSPB "
+                    f"greedy solutions of assignment 3 ({num(data.avg('TSPA', greedy_ls), 2)}), on TSPB "
                     + ("better" if msls_vs_greedy["TSPB"] else "worse") + f" ({num(data.avg('TSPB', greedy_ls), 2)}).")
                  )
-    constructive = (f"<b>Compared with the best construction heuristics,</b> ILS improved the average by "
-                    f"{signed_pct(ils_avg['TSPA'], best_constructive['TSPA'])} (TSPA) and "
-                    f"{signed_pct(ils_avg['TSPB'], best_constructive['TSPB'])} (TSPB), and it is the best of all methods "
-                    f"so far on both instances.")
+    constructive = (f"<b>Compared with the best construction heuristics,</b> ILS lowered the average objective by "
+                    f"{-pct(ils_avg['TSPA'], best_constructive['TSPA']):.1f} % (TSPA) and "
+                    f"{-pct(ils_avg['TSPB'], best_constructive['TSPB']):.1f} % (TSPB); it has the lowest average of "
+                    f"all methods in Table 1 on both instances.")
     chosen = {i: float(perturbation[i][CHOSEN]["avg"]) for i in INSTANCES}
 
     def described(perturbation_id: str) -> str:
         return " / ".join(num(float(perturbation[i][perturbation_id]["avg"]), 2) for i in INSTANCES)
 
+    def runs_tspa(perturbation_id: str) -> str:
+        return num(float(perturbation["TSPA"][perturbation_id]["ls_runs_average"]))
+
     components = (f"<b>Both parts of the perturbation are needed.</b> The double bridge alone gave {described('db1')} "
                   f"(TSPA / TSPB) and the segment replacement alone {described('seg4')}, both worse than their "
-                  f"combination ({num(chosen['TSPA'], 2)} / {num(chosen['TSPB'], 2)}), although the double bridge alone "
-                  f"allowed about {num(float(perturbation['TSPA']['db1']['ls_runs_average']))} local searches per run: it "
-                  f"does not change the selection of nodes. Ten random moves of the local-search neighbourhood gave "
-                  f"{described('random10')}.")
-    strength = (f"<b>The perturbation must be small.</b> A segment of 2 or 4 nodes gave the best results "
+                  f"combination ({num(chosen['TSPA'], 2)} / {num(chosen['TSPB'], 2)}). The double bridge alone is the "
+                  f"cheapest perturbation (about {runs_tspa('db1')} local searches per run on TSPA instead of "
+                  f"{runs_tspa(CHOSEN)}), but it does not change which nodes are selected. Ten random moves of the "
+                  f"local-search neighbourhood gave {described('random10')}.")
+    strength = (f"<b>Stronger perturbations were worse.</b> A segment of 2 or 4 nodes gave about the same results "
                 f"({described('db1_seg2')} and {described('db1_seg4')}); a segment of 8 nodes "
-                f"({described('db1_seg8')}) or two double bridges ({described('db2_seg4')}) moved the search too far: "
-                f"each local search took longer and the results were worse. Only about {accepted['TSPA']:.0f} (TSPA) and "
-                f"{accepted['TSPB']:.0f} (TSPB) of the {num(float(data.ls_runs['TSPA'][ILS]['average']))} / "
-                f"{num(float(data.ls_runs['TSPB'][ILS]['average']))} perturbed solutions per run led to a better local "
-                f"optimum.")
+                f"({described('db1_seg8')}) or two double bridges ({described('db2_seg4')}) gave worse ones. Such a "
+                f"perturbation moves the search further from the current local optimum, and every local search takes "
+                f"longer ({runs_tspa('db1_seg8')} and {runs_tspa('db2_seg4')} local searches per run on TSPA instead of "
+                f"{runs_tspa(CHOSEN)}).")
     checked = ("All best solutions shown in Section 6 were checked with the provided solution checker (its node data "
                "and formulas, applied to the node lists): every one is a valid solution and the checker objective equals "
                "the reported one." if not problems else
@@ -678,7 +682,7 @@ table.results thead th { background: #f0efec; font-weight: 650; border-bottom: 0
 table.results tbody th { font-weight: 600; }
 table.results tr.first > * { border-top: 0.9pt solid #c3c2b7; }
 table.results td { white-space: nowrap; }
-table.results td.num { text-align: right; }
+table.results td.num, table.results th.num { text-align: right; }
 table.results td.best { font-weight: 700; }
 table.times { font-size: 8.4pt; }
 .note { font-size: 8.6pt; margin-top: 1.5mm; }
@@ -725,8 +729,7 @@ def build_html() -> tuple[str, list[str]]:
     report = Report()
     first_page(report, data)
     algorithm_pages(report, data)
-    results_page(report, data)
-    perturbation_page(report, data)
+    results_pages(report, data)
     problems = best_solution_pages(report, data)
     conclusions_page(report, data, problems)
     document = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lab 06 — MSLS and ILS</title>'
@@ -749,9 +752,12 @@ def find_browser() -> str:
 
 
 def run_browser(browser: str, arguments: list[str]) -> subprocess.CompletedProcess:
+    # With a Windows compatibility layer set in the environment (__COMPAT_LAYER, inherited by some
+    # shells), headless Edge exits without writing anything, so the browser does not inherit it.
+    environment = {key: value for key, value in os.environ.items() if key.upper() != "__COMPAT_LAYER"}
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
         return subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-                               f"--user-data-dir={profile}", *arguments],
+                               f"--user-data-dir={profile}", *arguments], env=environment,
                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
 
 

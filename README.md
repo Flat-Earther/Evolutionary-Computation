@@ -16,7 +16,7 @@ The repository contains solutions and reports for the following assignments:
 | 03         | Local search                                                              | Finished   |
 | 04         | Candidate moves                                                           | Finished                      |
 | 05         | Use of move evaluations (deltas) from previous iterations in local search | Finished    |
-| 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Not started |
+| 06         | Multiple Start Local Search (MSLS) and Iterated Local Search (ILS)        | Finished    |
 | 07         | Large Neighborhood Search                                                 | Not started |
 | 08         | Global convexity (fitness-distance/similarity correlations) tests         | Not started |
 | 09         | Hybrid evolutionary algorithm                                             | Not started |
@@ -341,6 +341,27 @@ The complete implementation, evaluation artifacts, report generator, and report 
 lab-05-previous-deltas/
 lab-05-previous-deltas/generate_report.py
 lab-05-previous-deltas/report.pdf
+```
+
+---
+
+# Lab 06 - Multiple Start Local Search and Iterated Local Search
+
+The sixth laboratory extends the steepest local search (2-opt plus selected-to-unselected exchange, implemented with the Lab 05 list of moves) in two ways, each run 20 times per instance:
+
+* **Multiple start local search (MSLS)** - 400 local searches from random solutions; the best local optimum is the result;
+* **Iterated local search (ILS)** - a local search from a random solution, then repeatedly: perturb the current solution, run the local search and accept the new local optimum if it is better. ILS stops after the average running time of MSLS on the same instance.
+
+The perturbation applies one double bridge (three random cuts, `A B C D` becomes `A C B D`) and replaces a segment of 4 consecutive selected nodes with random unselected nodes. It was chosen in a comparison of seven perturbations with the same time limit. ILS performs about 9x as many local searches as MSLS in the same time and improves the average objective by 2.7% (TSPA) and 3.7% (TSPB); every ILS run is better than the best MSLS run.
+
+The evaluation records objective statistics, per-run running times, the number of local searches and accepted perturbations of ILS, the comparison of perturbations, best and worst routes, and visualizations. The report also compares MSLS and ILS with the best construction heuristics (Labs 02 and 02.5) and the best local search of Lab 03.
+
+The complete implementation, evaluation artifacts, report generator, and report are available in:
+
+```text
+lab-06-msls-and-ils/
+lab-06-msls-and-ils/generate_report.py
+lab-06-msls-and-ils/report.pdf
 ```
 
 ---
