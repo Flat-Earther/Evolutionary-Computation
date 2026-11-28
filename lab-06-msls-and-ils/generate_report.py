@@ -54,7 +54,7 @@ PREVIOUS = (
 )
 SINGLE, MSLS, ILS = "local_search", "msls", "ils"
 LABELS = {
-    SINGLE: "Steepest local search from a random solution, one run",
+    SINGLE: "Local search (LM) from a random solution, one run",
     MSLS: "Multiple start local search (MSLS)",
     ILS: "Iterated local search (ILS)",
 }
@@ -338,9 +338,11 @@ costs, never the coordinates. Both instances (TSPA, TSPB) have n = 200 nodes, so
 nodes. A solution is a list of m distinct node indices (0-based); the closing edge back to the first node is part
 of the objective.</p>
 <h2>2. Task and methods</h2>
-<p>The goal is to extend local search in two simple ways. Both use the same basic local search: the steepest local
-search of the earlier assignments, with <b>2-opt</b> (exchange of two edges) as the intra-route move and the
-<b>exchange</b> of a selected and a not selected node as the inter-route move.</p>
+<p>The goal is to extend local search in two simple ways. Both use the same local search: the steepest local search
+with <b class="nowrap">2-opt</b> (exchange of two edges) as the intra-route move and the <b>exchange</b> of a selected and a not
+selected node as the inter-route move, implemented with the <b>list of improving moves (LM) of assignment 5</b>. It
+applies the same moves as the basic steepest local search, but after each move it evaluates only the new moves
+instead of the whole neighbourhood (Section 3.1).</p>
 <ul>
 <li><b>Multiple start local search (MSLS)</b> — {MSLS_ITERATIONS} runs of local search, each from a new random
 solution; the result of one run of MSLS is the best of the {MSLS_ITERATIONS} local optima.</li>
@@ -352,28 +354,19 @@ ILS stops after the average running time of MSLS on the same instance ({limits})
 the nodes in a way a single 2-opt move cannot undo, and the <b>replacement of a segment of four consecutive
 nodes</b> by random not selected nodes changes the selection. Each method was run {RUNS} times per instance. For
 comparison the report also includes the best construction heuristics (assignments 2 and 2.5) and the best local
-searches (assignment 3, and the single run of the basic local search).</p>
+searches (assignment 3, and a single run of the local search with LM).</p>
 <p>The pseudocode is in Section 3, the experimental setup in Section 4, the results in Section 5, the best solutions
 with their visualisation and node lists in Section 6 and the conclusions in Section 7.</p>""")
 
 
 PSEUDOCODE_1 = """<span class="c">Notation</span>
-  n nodes, m = ⌈n/2⌉ selected; d(u, v) distance matrix; c(v) node cost
+  n nodes, m = ⌈n/2⌉ selected; d(u, v) distance matrix; c(v) node cost; f objective
   S[0..m−1]  cycle of the selected nodes (positions modulo m)
+  LOCAL-SEARCH(S)  steepest local search with the list of moves (LM) of assignment 5, Section 3.1
 
 <b>RANDOM-SOLUTION</b>()
   P <- random permutation of {0, ..., n−1}             <span class="c">// std::shuffle, mt19937</span>
   return S = (P[0], ..., P[m−1])
-
-<b>LOCAL-SEARCH</b>(S)                                    <span class="c">// basic steepest local search</span>
-  repeat
-    (move, Δ) <- the best move of S:
-        2-OPT(i, j): reverse S[i..j]
-            Δ = d(S[i−1], S[j]) + d(S[i], S[j+1]) − d(S[i−1], S[i]) − d(S[j], S[j+1])
-        EXCHANGE(p, v), v not selected: S[p] <- v
-            Δ = d(S[p−1], v) + d(v, S[p+1]) + c(v) − d(S[p−1], S[p]) − d(S[p], S[p+1]) − c(S[p])
-    if Δ >= 0: return S                                  <span class="c">// local optimum</span>
-    apply move to S
 
 <b>MSLS</b>()                                               <span class="c">// one run</span>
   best <- none
@@ -387,9 +380,9 @@ PSEUDOCODE_1 = """<span class="c">Notation</span>
   while the elapsed time < T:
     y <- LOCAL-SEARCH(PERTURB(x))
     if f(y) < f(x): x <- y                               <span class="c">// accept only a better local optimum</span>
-  return x"""
+  return x
 
-PSEUDOCODE_2 = """<b>PERTURB</b>(x)                                      <span class="c">// returns a perturbed copy y of x</span>
+<b>PERTURB</b>(x)                                      <span class="c">// returns a perturbed copy y of x</span>
   y <- copy of x
   <span class="c">// double bridge</span>
   draw i, j, k uniformly from {1, ..., m−1} until they are distinct; sort them so that i < j < k
@@ -403,8 +396,66 @@ PSEUDOCODE_2 = """<b>PERTURB</b>(x)                                      <span c
     y[(p + t) mod m] <- v                          <span class="c">// the replaced nodes are not drawn again</span>
   return y"""
 
+PSEUDOCODE_LM = """<span class="c">a→b  an edge of S traversed in the direction of S.  Moves: only the change Δ of f is computed</span>
+  <b>2-OPT</b>(a→b, c→d)      two edges of S without a common node
+      remove (a, b), (c, d); add (a, c), (b, d)          <span class="c">// reverses the path b → ... → c</span>
+      Δ = d(a, c) + d(b, d) − d(a, b) − d(c, d)
+  <b>EXCHANGE</b>(u, v)       u selected, with neighbours p and s in S; v not selected
+      v replaces u: remove (p, u), (u, s); add (p, v), (v, s)
+      Δ = d(p, v) + d(v, s) + c(v) − d(p, u) − d(u, s) − c(u)
+
+<span class="c">LM: improving moves ordered by Δ, the best first. A stored move consists of nodes only:</span>
+<span class="c">  2-opt (a→b, c→d): the removed edges with their directions at evaluation; adds (a, c), (b, d)</span>
+<span class="c">  exchange (u, p, s, v): u, between p and s, is replaced by v</span>
+
+<b>CHECK</b>(move, S)                                         <span class="c">// the three situations</span>
+  if move = 2-opt (a→b, c→d):
+    if {a, b} or {c, d} is not an edge of S:       return REMOVE    <span class="c">// (1) an edge is gone</span>
+    if a→b and c→d in S, or b→a and d→c in S:      return APPLY     <span class="c">// (3) same relative direction</span>
+    return KEEP                                    <span class="c">// (2) different relative direction</span>
+  if move = exchange (u, p, s, v):
+    if u is selected between p and s (in either order) and v is not selected:  return APPLY
+    return REMOVE
+
+<b>TAKE-BEST</b>(LM, S)
+  for move in LM, from the best Δ:
+    switch CHECK(move, S):
+      REMOVE: delete move from LM
+      KEEP:   leave move in LM and continue browsing
+      APPLY:  delete move from LM; return move
+              <span class="c">// equal Δ: the applicable move first in the scan order of the basic steepest search</span>
+  return NONE
+
+<b>ADD-PAIR</b>(LM, a→b, c→d)                <span class="c">// two edges of S without a common node, both reconnections</span>
+  Δ1 = d(a, c) + d(b, d) − d(a, b) − d(c, d)
+  if Δ1 < 0: insert 2-opt (a→b, c→d) with Δ1 into LM        <span class="c">// applicable now</span>
+  Δ2 = d(a, d) + d(b, c) − d(a, b) − d(c, d)
+  if Δ2 < 0: insert 2-opt (a→b, d→c) with Δ2 into LM        <span class="c">// relatively inverted edges</span>
+
+<b>ADD-EXCHANGE</b>(LM, u, v)                 <span class="c">// u selected (neighbours p, s), v not selected</span>
+  if Δ(EXCHANGE(u, v)) < 0: insert exchange (u, p, s, v) with Δ into LM
+
+<b>EVALUATE-ALL</b>(S, LM)
+  for every pair of edges of S without a common node: ADD-PAIR     <span class="c">// m(m−3)/2 pairs, 2 moves each</span>
+  for every selected u and not selected v: ADD-EXCHANGE(LM, u, v)   <span class="c">// m(n−m) moves</span>
+
+<b>EVALUATE-NEW</b>(S, LM, move)              <span class="c">// after move has been applied to S</span>
+  E <- the two edges added by move;  N <- their end nodes (4 for 2-opt; p, v, s for an exchange)
+  for e in E, for every edge f of S without a common node with e: ADD-PAIR(LM, e, f)   <span class="c">// each pair once</span>
+  for u in N, for every not selected v: ADD-EXCHANGE(LM, u, v)
+  if move was an exchange that removed u: for every selected w not in N: ADD-EXCHANGE(LM, w, u)
+  <span class="c">// a pair of two old edges keeps its Δ; whether it can be applied is decided by CHECK</span>
+
+<b>LOCAL-SEARCH</b>(S)                        <span class="c">// steepest local search with LM: new moves evaluated after each move</span>
+  LM <- ∅;  EVALUATE-ALL(S, LM)
+  loop
+    move <- TAKE-BEST(LM, S)
+    if move = NONE: return S              <span class="c">// LM holds every improving move: local optimum</span>
+    apply move to S;  EVALUATE-NEW(S, LM, move)"""
+
 
 def algorithm_pages(report: Report, data: Data) -> None:
+    per_search = {i: float(data.times[i][ILS]["average_ms"]) / float(data.ls_runs[i][ILS]["average"]) for i in INSTANCES}
     report.page(f"""
 <h2>2.1 Perturbation</h2>
 <p>A perturbation has to lead ILS out of the basin of attraction of the current local optimum, but not so far that
@@ -426,32 +477,44 @@ only if it is strictly better than the current solution.</p>
 <h2>3. Algorithms (pseudocode)</h2>
 <pre class="code">{PSEUDOCODE_1}</pre>""")
     report.page(f"""
-<pre class="code">{PSEUDOCODE_2}</pre>
-<h2>3.1 Implementation</h2>
+<h2>3.1 Local search with a list of moves (LM)</h2>
+<p>LOCAL-SEARCH, used by MSLS and by ILS, is the steepest local search with the list of improving moves (LM) of
+assignment 5, in the variant that evaluates the new moves after each move. LM keeps the improving moves ordered by
+Δ; a stored move is checked before it is applied, and after a move only the moves that involve one of its new edges
+or a node whose neighbours changed are evaluated. Among applicable moves with equal Δ, the one that comes first in
+the scan order of the basic steepest search is applied, so LOCAL-SEARCH applies the same moves and reaches the same
+local optimum as the basic steepest local search (verified in assignment 5), about 2.3× faster.</p>
+<pre class="code">{PSEUDOCODE_LM}</pre>""")
+    report.page(f"""
+<h2>3.2 Implementation</h2>
 <ul>
-<li><b>Basic local search.</b> The steepest local search is implemented with the list of improving moves of
-assignment 5 (moves evaluated after each move only where the solution changed; ties broken in the scan order of the
-plain steepest search). It applies exactly the same moves as the plain steepest local search, about twice as fast.
-Only the change Δ of the objective is computed for every move.</li>
-<li><b>Iterations of ILS.</b> Every iteration copies the current local optimum, perturbs the copy and runs the local
-search from it; the local search evaluates all moves of the perturbed solution and then only the new ones, so a
-local optimum near the start is reached after a few moves.</li>
+<li><b>Local search.</b> The LM implementation of assignment 5 is used unchanged: LM is a bucket queue indexed by
+−Δ, a stored move takes 16 bytes, and CHECK takes constant time thanks to the stored successor of every node. The
+memory of LM is allocated once per instance and reused by all local searches of all runs.</li>
+<li><b>Iterations of ILS.</b> Every iteration copies the current local optimum, perturbs the copy and runs
+LOCAL-SEARCH from it. EVALUATE-ALL evaluates all moves of the perturbed solution once; the perturbed solution differs
+from a local optimum only around the changed positions, so far fewer moves follow than from a random solution. One
+iteration (perturbation and local search) took about {ms(per_search['TSPA'], 3)} ms (TSPA) and
+{ms(per_search['TSPB'], 3)} ms (TSPB), against
+{ms(data.times['TSPA'][SINGLE]['average_ms'], 3)} / {ms(data.times['TSPB'][SINGLE]['average_ms'], 3)} ms for a local
+search from a random solution.</li>
 <li><b>Time limit of ILS.</b> The limit is checked before every iteration; the time of an ILS run includes its first
 local search from the random solution.</li>
 <li><b>Randomness.</b> Every run of MSLS and of ILS has its own random generator (mt19937, seeded from the seed of
 the experiment, the instance and the run), so the experiment can be repeated; ILS stops after a time, so its results
 can differ slightly between repetitions.</li>
 <li><b>Verification.</b> Every reported solution is checked to be a valid cycle of 100 distinct nodes, its objective
-is recomputed from scratch, and a run of the steepest local search from it must not find an improving move. The best
-solutions were also checked with the provided solution checker (Section 6).</li>
+is recomputed from scratch, and the basic steepest local search (without LM), run from it as an independent check,
+must not find an improving move. The best solutions were also checked with the provided solution checker
+(Section 6).</li>
 </ul>
 <h2>4. Computational experiment</h2>
 <ul>
 <li><b>Runs.</b> On each instance, MSLS was run {RUNS} times, then ILS {RUNS} times. One run of MSLS performs
 {MSLS_ITERATIONS} local searches; ILS stops after the average running time of the {RUNS} MSLS runs on the same
 instance, measured in the same execution. Every ILS run starts from its own random solution.</li>
-<li><b>Single local search.</b> The row "one run" of the basic local search summarises all
-{num(RUNS * MSLS_ITERATIONS)} local searches performed inside MSLS (each from a random solution).</li>
+<li><b>Single local search.</b> The row "{esc(LABELS[SINGLE])}" summarises all {num(RUNS * MSLS_ITERATIONS)}
+local searches performed inside MSLS (each from a random solution).</li>
 <li><b>Earlier methods.</b> The objective values of the best construction heuristics (assignments 2 and 2.5) and of
 the best local search of assignment 3 are taken from those assignments (200 solutions each). Their running times were
 measured with earlier implementations and are not comparable, so they are not repeated here.</li>
@@ -521,13 +584,13 @@ are results of earlier assignments; MSLS and ILS: {RUNS} runs each</caption>
         perturbation_rows.append(f"<tr><th>{esc(label)}</th>{''.join(cells)}</tr>")
     report.page(f"""
 <table class="results times">
-<caption>Table 2. Running time of one run in ms: average (minimum – maximum). One run of the basic local search
+<caption>Table 2. Running time of one run in ms: average (minimum – maximum). One run of the local search (LM)
 includes the generation of its random solution; the time limit of ILS was {limits}</caption>
 <thead><tr><th>Method</th><th>TSPA</th><th>TSPB</th></tr></thead>
 <tbody>{''.join(time_rows)}</tbody></table>
 <table class="results times">
-<caption>Table 3. Number of runs of the basic local search in one run: average (minimum – maximum), and the average
-number of perturbations whose local optimum was accepted (ILS)</caption>
+<caption>Table 3. Number of runs of the basic local search (LOCAL-SEARCH with LM) in one run: average (minimum –
+maximum), and the average number of perturbations whose local optimum was accepted (ILS)</caption>
 <thead><tr><th rowspan="2">Method</th><th colspan="2">TSPA</th><th colspan="2">TSPB</th></tr>
 <tr><th>local searches</th><th class="num">accepted</th><th>local searches</th><th class="num">accepted</th></tr></thead>
 <tbody>{''.join(run_rows)}</tbody></table>

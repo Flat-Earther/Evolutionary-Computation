@@ -1,6 +1,6 @@
 # Lab 06 - Multiple Start Local Search and Iterated Local Search
 
-This laboratory extends the steepest local search in two simple ways: multiple start local search (MSLS) and iterated local search (ILS). Both use the same basic local search: the steepest local search with 2-opt as the intra-route move and the exchange of a selected and an unselected node as the inter-route move. It is implemented with the list of improving moves of Lab 05 (new moves evaluated after each move), which applies exactly the same moves as the plain steepest local search, about 2.3x faster.
+This laboratory extends the steepest local search in two simple ways: multiple start local search (MSLS) and iterated local search (ILS). Both use the local search with the list of improving moves (LM) of Lab 05, in the variant that evaluates the new moves after each move: the steepest local search with 2-opt as the intra-route move and the exchange of a selected and an unselected node as the inter-route move. The LM sources (`src/lm_search.{hpp,cpp}`) are those of Lab 05, unchanged; LM applies exactly the same moves as the plain steepest local search, about 2.3x faster. The plain steepest local search is used only to verify that every reported solution is a local optimum.
 
 ## Methods
 
